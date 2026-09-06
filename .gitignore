@@ -424,7 +424,12 @@ Resources/*
 !Resources/checksums/
 .DS_Store
 db/*
-!db/asd_schema.sql
+# The schema is the one tracked file in db/. This negation must name it exactly:
+# it read !db/asd_schema.sql after the file was renamed to schema.sql, so the file
+# stayed tracked only in a repository whose index already held it. A fresh clone
+# had no schema at all.
+!db/schema.sql
+!db/hasura_metadata.json
 !db/hasura_metadata.json
 
 config.yaml
