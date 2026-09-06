@@ -1,0 +1,31 @@
+name: adar_asd_project
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.10
+  - pandas
+  - numpy
+  - matplotlib
+  - tqdm
+  - requests
+  - graphviz
+  - python-graphviz
+  - ipython
+  - pillow
+  - jupyter
+  - openpyxl
+  - biopython
+  - pyfaidx
+  - pandarallel
+  - python-dotenv
+  - seaborn
+  - pyyaml
+  - joblib
+  # Test harness. Exact versions of everything actually installed are recorded in
+  # environment.lock.txt; regenerate with `make lock`.
+  - pytest
+  - pytest-cov
+
+

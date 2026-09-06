@@ -1,0 +1,259 @@
+---
+title: "Figure 3 panel — Brain expression heatmap (top SFARI-1 genes)"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: show
+params:
+  regenerate:        false
+  panel_id:          "Figure_3_brain_heatmap"
+  hasura_url:        "http://localhost:8789/v1/graphql"
+  env_file:          ""
+  cache_db:          ""
+  intermediate_dir:  ""
+  out_main:          ""
+  out_supp_tables:   ""
+  n_top_genes:       20
+  organ_id_brain:    8
+  panel_tag:         "A"
+  width:             8
+  height:            10
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+root <- Sys.getenv("ASD_PAPER_ROOT")
+if (!nzchar(root)) stop("ASD_PAPER_ROOT is unset -- see figures/README.md")
+source(file.path(root, "figures", "_paths.R"))
+suppressPackageStartupMessages({
+  library(httr); library(jsonlite); library(dplyr); library(tidyr)
+  library(ggplot2); library(scales); library(tibble)
+})
+source(asd_code("ver1", "_helpers.R"))
+
+panel_id        <- params$panel_id
+intermediate_dir<- asd_param_path(params$intermediate_dir, asd_intermediate_dir())
+out_main        <- asd_param_path(params$out_main,         asd_panels_dir())
+out_supp_tables <- asd_param_path(params$out_supp_tables,  asd_supp_tables_dir("panels"))
+dir.create(intermediate_dir, showWarnings = FALSE, recursive = TRUE)
+dir.create(out_main,         showWarnings = FALSE, recursive = TRUE)
+dir.create(out_supp_tables,  showWarnings = FALSE, recursive = TRUE)
+
+expr_rds       <- file.path(intermediate_dir, "brain_expr.rds")
+top_genes_rds  <- file.path(intermediate_dir, "top_genes.rds")
+ggplot_rds     <- file.path(intermediate_dir, paste0(panel_id, "_ggplot.rds"))
+source_csv     <- file.path(intermediate_dir, paste0("Source_data_", panel_id, ".csv"))
+```
+
+# Plan
+
+Adapted from `ASD_code_try_ver4_130326_Nave_dataset.rmd` "Figure 2B" — brain
+expression heatmap of the top SFARI-score-1 genes by variant count.  Two
+versions exist in the v4 code; the collaborators asked for the **clean** one (rows
+labelled "GENE" only, no SFARI annotation).  Tag = `A` of Figure 3.
+
+Inputs:
+
+- Top genes: `params$n_top_genes` SFARI-1 gene_symbols ranked by variant
+  count in `df_cds`.
+- Expression: `gene_expressions` from the DB filtered to `organ_id = 8`
+  (Brain), pulled via `gql_read()` and pivoted to a gene × tissue matrix.
+
+Tissues shown (column order — matches v4):
+
+1. Cortex
+2. Frontal Cortex (BA9)
+3. Anterior cingulate cortex (BA24)
+4. Cerebellar Hemisphere
+5. Cerebellum
+
+Heatmap fill: `log10(TPM + 1)`, white → blue gradient.
+
+# Read-only DB wrapper
+
+```{r gql_read}
+.load_hasura_secret <- function(env_file) {
+  if (Sys.getenv("HASURA_ADMIN_SECRET") != "") return(invisible(NULL))
+  if (!file.exists(env_file)) return(invisible(NULL))
+  for (l in readLines(env_file, warn = FALSE)) {
+    l <- trimws(l)
+    if (l == "" || startsWith(l, "#")) next
+    m <- regmatches(l, regexec("^HASURA_ADMIN_SECRET=\"?([^\"]*)\"?$", l))[[1]]
+    if (length(m) == 2) { Sys.setenv(HASURA_ADMIN_SECRET = m[2]); break }
+  }
+}
+.load_hasura_secret(asd_param_path(params$env_file, asd_env_file()))
+HASURA_URL    <- params$hasura_url
+HASURA_SECRET <- Sys.getenv("HASURA_ADMIN_SECRET")
+stopifnot(nchar(HASURA_SECRET) > 0)
+
+gql_read <- function(query, max_retries = 5) {
+  q <- trimws(query)
+  if (!grepl("^(query\\b|\\{)", q))
+    stop("gql_read: query must start with 'query' or '{'.")
+  for (tok in c("mutation ", "mutation{", "insert_", "update_", "delete_")) {
+    if (grepl(tok, tolower(q), fixed = TRUE))
+      stop("gql_read: forbidden token '", tok, "'.")
+  }
+  body <- toJSON(list(query = query), auto_unbox = TRUE)
+  for (attempt in seq_len(max_retries)) {
+    resp <- tryCatch(
+      POST(HASURA_URL,
+           add_headers(`x-hasura-admin-secret` = HASURA_SECRET),
+           content_type_json(), body = body, timeout(180)),
+      error = function(e) { cat("[gql_read] attempt", attempt, "POST error:",
+                                conditionMessage(e), "\n"); NULL })
+    if (is.null(resp))                       { Sys.sleep(0.5 * 2^(attempt-1)); next }
+    if (status_code(resp) %in% c(502,503,504)) { Sys.sleep(0.5 * 2^(attempt-1)); next }
+    parsed <- fromJSON(content(resp, as = "text", encoding = "UTF-8"), flatten = TRUE)
+    if (!is.null(parsed$errors))
+      stop("GraphQL error: ", toJSON(parsed$errors, auto_unbox = TRUE))
+    return(parsed$data)
+  }
+  stop("gql_read: failed after ", max_retries, " attempts")
+}
+```
+
+# Top genes (from cached df_cds)
+
+```{r top_genes}
+df_cds <- readRDS(asd_param_path(params$cache_db, asd_db_snapshot("df_cds.rds")))
+
+top_genes_tbl <- df_cds %>%
+  filter(sfari_gene_score == "1") %>%
+  count(gene_symbol, name = "total_variants") %>%
+  arrange(desc(total_variants)) %>%
+  head(params$n_top_genes)
+
+top_genes <- top_genes_tbl$gene_symbol
+saveRDS(top_genes_tbl, top_genes_rds)
+cat("top", params$n_top_genes, "SFARI-1 genes by variant count:\n")
+print(top_genes_tbl)
+```
+
+# Pull (or reload) brain expression
+
+```{r pull_expression}
+have_cache <- file.exists(expr_rds)
+if (!params$regenerate && have_cache) {
+  cat("reusing cache:", expr_rds, "\n")
+  df_expr <- readRDS(expr_rds)
+} else {
+  cat("pulling gene expressions for organ_id =", params$organ_id_brain, "...\n")
+  # Build _in array literal for the genes we care about
+  syms_lit <- paste0('"', top_genes, '"', collapse = ",")
+  q <- sprintf('{
+    genes(where: { symbol: { _in: [%s] } }) {
+      symbol
+      gene_expressions(where: { tissue: { organ_id: { _eq: %d } } }) {
+        tissue { name }
+        median_tpm
+      }
+    }
+  }', syms_lit, params$organ_id_brain)
+
+  rs <- gql_read(q)$genes
+  # rs$gene_expressions is a list-column (data.frame per gene) when flatten=TRUE
+  rows <- lapply(seq_len(nrow(rs)), function(i) {
+    sym <- rs$symbol[i]
+    ge  <- rs$gene_expressions[[i]]
+    if (is.null(ge) || nrow(ge) == 0)
+      return(data.frame(gene_symbol = sym, tissue = character(0),
+                        median_tpm = numeric(0)))
+    data.frame(gene_symbol = sym,
+               tissue      = ge$tissue.name,
+               median_tpm  = as.numeric(ge$median_tpm))
+  })
+  df_expr <- bind_rows(rows)
+
+  saveRDS(df_expr, expr_rds)
+  cat("pulled:", nrow(df_expr), "gene×tissue rows ->", expr_rds, "\n")
+}
+print(head(df_expr))
+```
+
+# Build matrix and plot
+
+```{r build_panel, fig.width=params$width, fig.height=params$height}
+tissue_order <- c("Cortex",
+                  "Frontal Cortex (BA9)",
+                  "Anterior cingulate cortex (BA24)",
+                  "Cerebellar Hemisphere",
+                  "Cerebellum")
+
+mat <- df_expr %>%
+  filter(tissue %in% tissue_order) %>%
+  pivot_wider(names_from = tissue, values_from = median_tpm) %>%
+  column_to_rownames("gene_symbol") %>%
+  as.matrix()
+
+# Order columns and rows
+mat <- mat[, intersect(tissue_order, colnames(mat))]
+# Row order: top of heatmap = highest variant count (matches v4's bar order)
+row_order <- intersect(rev(top_genes), rownames(mat))
+mat <- mat[row_order, ]
+
+cat("Heatmap matrix:", nrow(mat), "genes x", ncol(mat), "tissues\n")
+cat("TPM range:", round(min(mat, na.rm = TRUE), 2), "—",
+    round(max(mat, na.rm = TRUE), 2), "\n")
+
+# Two-line tissue labels for the BA-suffixed columns to save horizontal space
+display_tissue <- gsub(" \\(BA", "\n(BA", colnames(mat))
+colnames(mat)  <- display_tissue
+
+mat_long <- as.data.frame(mat) %>%
+  rownames_to_column("gene_symbol") %>%
+  pivot_longer(-gene_symbol, names_to = "tissue", values_to = "TPM") %>%
+  mutate(gene_symbol = factor(gene_symbol, levels = row_order),
+         tissue      = factor(tissue, levels = display_tissue))
+
+p <- ggplot(mat_long, aes(x = tissue, y = gene_symbol,
+                          fill = log10(TPM + 1))) +
+  geom_tile(colour = "black", linewidth = 0.5) +
+  scale_fill_gradientn(
+    colours = c("white", "#deebf7", "#9ecae1", "#3182bd"),
+    values  = scales::rescale(c(0, 0.33, 0.67, 1.0)),
+    limits  = c(0, 2),
+    oob     = scales::squish,
+    na.value = "grey90",
+    name    = "log10(TPM + 1)",
+    breaks  = c(0, 0.5, 1, 1.5, 2),
+    labels  = c("0", "0.5", "1", "1.5", "2")
+  ) +
+  labs(x = NULL, y = NULL, tag = params$panel_tag) +
+  theme_publication(base_size = 12, x_angle = 45, y_bold = TRUE) +
+  theme(
+    axis.text.x       = element_text(face = "bold", angle = 45,
+                                     hjust = 1, size = 11,
+                                     family = "Nimbus Sans"),
+    axis.text.y       = element_text(face = "bold", size = 11,
+                                     family = "Nimbus Sans"),
+    panel.grid        = element_blank(),
+    legend.position   = "right",
+    plot.tag          = element_text(face = "bold", size = 16,
+                                     family = "Nimbus Sans"),
+    plot.tag.position = c(0, 1)
+  )
+# print(p) below would fail under Rscript's null device on systems where
+# the bold/italic Nimbus Sans variants trigger a CID-font lookup; saving
+# via cairo_pdf works fine, so we skip the on-screen render.
+if (interactive()) print(p) else invisible(p)
+```
+
+# Save
+
+```{r save}
+saveRDS(p, ggplot_rds)
+out_pdf <- file.path(out_main, paste0(panel_id, ".pdf"))
+out_png <- file.path(intermediate_dir, paste0(panel_id, ".png"))
+ggsave(out_pdf, p, width = params$width, height = params$height,
+       device = cairo_pdf, bg = "transparent")
+ggsave(out_png, p, width = params$width, height = params$height,
+       dpi = 150, bg = "white")
+write.csv(mat_long, source_csv, row.names = FALSE)
+cat("saved:\n  ", out_pdf, "\n  ", ggplot_rds, "\n  ", out_png, "\n  ",
+    source_csv, "\n")
+```

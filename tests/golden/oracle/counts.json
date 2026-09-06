@@ -1,0 +1,207 @@
+{
+  "hasura_url": "http://127.0.0.1:8789/v1/graphql",
+  "queries_sha256": "123ff37a74cbc3ec73a2af286588d7b35795fa02dcca2234e16b23a1d20be48f",
+  "results": {
+    "DistinctSubjects_AnyEditingClass": {
+      "counts": {
+        "DistinctSubjects_AnyEditingClass": 4644
+      },
+      "expect": {},
+      "line": 810,
+      "query_sha1": "421ffae42a4e2a9df35e825fc7981e638cc668b0"
+    },
+    "ImproveAnalysis": {
+      "counts": {
+        "NonG2A_Missense": 4879,
+        "NonG2A_Missense_Editable": 1963,
+        "NonG2A_Missense_Improve": 158,
+        "NonG2A_Missense_Improve_Simple": 360
+      },
+      "expect": {
+        "NonG2A_Missense": 4879,
+        "NonG2A_Missense_Editable": 1963,
+        "NonG2A_Missense_Improve": 158,
+        "NonG2A_Missense_Improve_Simple": 360
+      },
+      "line": 351,
+      "query_sha1": "737ca3a8eda437bfb825584edd52b66f3ce5c02c"
+    },
+    "ImproveAnalysisNoSplice": {
+      "counts": {
+        "NonG2A_Missense": 4721,
+        "NonG2A_Missense_Editable": 1890,
+        "NonG2A_Missense_Improve": 150,
+        "NonG2A_Missense_Improve_Simple": 350
+      },
+      "expect": {
+        "NonG2A_Missense": 4721,
+        "NonG2A_Missense_Editable": 1890,
+        "NonG2A_Missense_Improve": 150,
+        "NonG2A_Missense_Improve_Simple": 350
+      },
+      "line": 452,
+      "query_sha1": "858bbdef28e2d477285d2c1d2a37dbec34c2441d"
+    },
+    "ImproveAnalysis_SiftInclusive": {
+      "counts": {
+        "NonG2A_Missense_Improve": 150,
+        "NonG2A_Missense_Improve_Simple": 331
+      },
+      "expect": {
+        "NonG2A_Missense_Improve": 150,
+        "NonG2A_Missense_Improve_Simple": 331
+      },
+      "line": 556,
+      "query_sha1": "19fec9af05d3088371a47ac6222cf93bfaa6b203"
+    },
+    "ImproveSubjects": {
+      "counts": {
+        "NonG2A_Missense_Improve_Subjects": 201
+      },
+      "expect": {
+        "NonG2A_Missense_Improve_Subjects": 201
+      },
+      "line": 672,
+      "query_sha1": "50ebe706164f79e679f327c11bedf114918da786"
+    },
+    "ImproveSubjectsNoSplice": {
+      "counts": {
+        "NonG2A_Missense_Improve_Subjects": 193
+      },
+      "expect": {
+        "NonG2A_Missense_Improve_Subjects": 193
+      },
+      "line": 702,
+      "query_sha1": "c95f9aba014f3c962c275700e0940eb0c0acc20c"
+    },
+    "ImproveSubjects_SiftInclusive": {
+      "counts": {
+        "NonG2A_Missense_Improve_Subjects": 188
+      },
+      "expect": {
+        "NonG2A_Missense_Improve_Subjects": 188
+      },
+      "line": 633,
+      "query_sha1": "d160934eb61f6addc416593a6a531d56267b81c6"
+    },
+    "NonG2A_StopGained_0offTarget_Pass": {
+      "counts": {
+        "NonG2A_StopGained_Pass": 681
+      },
+      "expect": {
+        "NonG2A_StopGained_Pass": 681
+      },
+      "line": 161,
+      "query_sha1": "ecdce8c18e0e01151f5bb0607c436c31b41683d8"
+    },
+    "NonG2A_StopGained_Pass": {
+      "counts": {
+        "NonG2A_StopGained_Pass": 894
+      },
+      "expect": {
+        "NonG2A_StopGained_Pass": 894
+      },
+      "line": 131,
+      "query_sha1": "13ea43d1a0d5427ec3f9aafafb92b6a1eb785727"
+    },
+    "NonG2A_StopGained_Pass_NoDeleteriousBystander": {
+      "counts": {
+        "NonG2A_StopGained_Pass_NoDeleteriousBystander": 404
+      },
+      "expect": {
+        "None": 404
+      },
+      "line": 206,
+      "query_sha1": "120f65f080231f90f59390c6cab2bb54adfd43ac"
+    },
+    "NonG2A_StopGained_Pass_OLD": {
+      "counts": {
+        "NonG2A_StopGained_Pass": 81
+      },
+      "expect": {
+        "NonG2A_StopGained_Pass": 81
+      },
+      "line": 259,
+      "query_sha1": "b8cd9d75f9e602b7c4b2933bafebb683f3c96749"
+    },
+    "NonG2A_StopGained_Pass_Subjects": {
+      "counts": {
+        "NonG2A_StopGained_Pass_Subjects": 1417
+      },
+      "expect": {
+        "NonG2A_StopGained_Pass_Subjects": 1417
+      },
+      "line": 290,
+      "query_sha1": "0f02d5b44ee0330911703d690ab064b703f5bf9e"
+    },
+    "NonG2A_StopGained_Pass_Subjects_OLD": {
+      "counts": {
+        "NonG2A_StopGained_Pass_Subjects_OLD": 129
+      },
+      "expect": {
+        "NonG2A_StopGained_Pass_Subjects_OLD": 129
+      },
+      "line": 319,
+      "query_sha1": "d91954ab922bb7a6b4e8523934c54f2b8a706f50"
+    },
+    "NonG2A_StopGained_ZeroOffTarget_NoDeleteriousBystander": {
+      "counts": {
+        "NonG2A_StopGained_ZeroOffTarget_NoDeleteriousBystander": 315
+      },
+      "expect": {
+        "None": 315
+      },
+      "line": 232,
+      "query_sha1": "41be26bc496f22038e51a5a164a81e21a728a221"
+    },
+    "TreatableSubjects": {
+      "counts": {
+        "TreatableSubjects": 3166
+      },
+      "expect": {
+        "TreatableSubjects": 3166
+      },
+      "line": 85,
+      "query_sha1": "01f9aa1eafc46adc40eef6db2929b83cc40080e7"
+    },
+    "TreatableVariants": {
+      "line": 743,
+      "query_sha1": "496927ce6c91ed987a3a62e6a60d12845b798cb5",
+      "skipped": "requires variables"
+    },
+    "TreatableVariants_NoDeleteriousBystander": {
+      "counts": {
+        "TreatableVariants_NoDeleteriousBystander": 891
+      },
+      "expect": {
+        "TreatableVariants_NoDeleteriousBystander": 891
+      },
+      "line": 108,
+      "query_sha1": "712f2f3eb1dac1b1180c146d3488c4811b7d08ee"
+    },
+    "VariantsAnalysis": {
+      "counts": {
+        "CDSVariants": 9962,
+        "G2AVariants": 2650,
+        "NonG2A_StopGained": 1092,
+        "ProteinCodingVariants": 190709,
+        "SFARIVariants": 34292,
+        "SNVsVariants": 281812,
+        "TotalVariants": 329279,
+        "TreatableVariants": 2421
+      },
+      "expect": {
+        "CDSVariants": 9962,
+        "G2AVariants": 2650,
+        "NonG2A_StopGained": 1092,
+        "ProteinCodingVariants": 190709,
+        "SFARIVariants": 34292,
+        "SNVsVariants": 281812,
+        "TotalVariants": 329279,
+        "TreatableVariants": 2421
+      },
+      "line": 3,
+      "query_sha1": "7146cc41534e7b04f2852d423b014b7a6beb6735"
+    }
+  }
+}

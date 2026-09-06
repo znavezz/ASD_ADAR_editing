@@ -1,0 +1,488 @@
+---
+title: "Figure 1D — CDS+Splice G>A Variants by Off-Target Hits & Consequence"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: show
+    theme: flatly
+params:
+  regenerate:        false                                                      # FALSE: reload cached variant table
+  panel_id:          "Figure_1D_offtargets"
+  hasura_url:       "http://localhost:8789/v1/graphql"
+  env_file:         ""
+  intermediate_dir: ""
+  out_main:         ""
+  out_supp_tables:  ""
+  width:             8
+  height:            5
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+root <- Sys.getenv("ASD_PAPER_ROOT")
+if (!nzchar(root)) stop("ASD_PAPER_ROOT is unset -- see figures/README.md")
+source(file.path(root, "figures", "_paths.R"))
+
+suppressPackageStartupMessages({
+  library(dplyr)
+  library(tidyr)
+  library(ggplot2)
+  library(scales)
+  library(httr)
+  library(jsonlite)
+})
+
+source(asd_code("ver1", "_helpers.R"))  # theme_publication, consequence_fill, save_panel
+
+panel_id        <- params$panel_id
+intermediate_dir<- asd_param_path(params$intermediate_dir, asd_intermediate_dir())
+out_main        <- asd_param_path(params$out_main,         asd_panels_dir())
+out_supp_tables <- asd_param_path(params$out_supp_tables,  asd_supp_tables_dir("panels"))
+dir.create(intermediate_dir, showWarnings = FALSE, recursive = TRUE)
+dir.create(out_main,         showWarnings = FALSE, recursive = TRUE)
+dir.create(out_supp_tables,  showWarnings = FALSE, recursive = TRUE)
+
+variants_rds      <- file.path(intermediate_dir, paste0(panel_id, "_variants.rds"))
+plotdata_rds      <- file.path(intermediate_dir, paste0(panel_id, "_plotdata.rds"))
+ggplot_dna_rds    <- file.path(intermediate_dir, paste0(panel_id, "_dna_ggplot.rds"))
+ggplot_rna_rds    <- file.path(intermediate_dir, paste0(panel_id, "_rna_ggplot.rds"))
+source_data_csv   <- file.path(intermediate_dir, paste0("Source_data_", panel_id, ".csv"))
+```
+
+# Plan
+
+Stacked bars of CDS+Splice **gene-sense G>A** variants (the ADAR-treatable
+ones, in SFARI 1–3 genes), binned by **off-target hit count** (0, 1, 2, 3,
+4+) and stacked by **consequence** (Missense / Nonsense / Splice).  Two
+plots from the same variant table:
+
+- **D — DNA off-targets**: `variants_guides{guide.type="pre_mRNA"}.hits_95`
+- **D' — RNA off-targets**: `variants_guides{guide.type="mature_mRNA"}.hits_95`
+
+Adapted from `plots.ipynb` cells 11-14 (April 2026).  Schema diff:
+the python notebook used a 1:1 `editing_context` field; this DB exposes a
+1:N `variants_guides` relationship with `guide.type` ∈ {pre_mRNA,
+mature_mRNA}.
+
+# Read-only GraphQL wrapper
+
+```{r gql_wrapper}
+.load_hasura_secret <- function(env_file) {
+  if (Sys.getenv("HASURA_ADMIN_SECRET") != "") return(invisible(NULL))
+  if (!file.exists(env_file)) return(invisible(NULL))
+  for (l in readLines(env_file, warn = FALSE)) {
+    l <- trimws(l)
+    m <- regmatches(l, regexec("^HASURA_ADMIN_SECRET=\"?([^\"]*)\"?$", l))[[1]]
+    if (length(m) == 2) { Sys.setenv(HASURA_ADMIN_SECRET = m[2]); break }
+  }
+}
+
+.load_hasura_secret(asd_param_path(params$env_file, asd_env_file()))
+
+HASURA_URL    <- params$hasura_url
+HASURA_SECRET <- Sys.getenv("HASURA_ADMIN_SECRET")
+stopifnot(nchar(HASURA_SECRET) > 0)
+
+gql_read <- function(query, variables = NULL, max_retries = 5) {
+  q <- trimws(query)
+  if (!grepl("^(query\\b|\\{)", q))
+    stop("gql_read: query must start with 'query' or '{'.")
+  for (tok in c("mutation", "insert_", "update_", "delete_")) {
+    if (grepl(tok, tolower(q), fixed = TRUE))
+      stop("gql_read: forbidden token '", tok, "' detected.")
+  }
+
+  body <- list(query = query)
+  if (!is.null(variables)) body$variables <- variables
+
+  for (attempt in seq_len(max_retries)) {
+    resp <- tryCatch(
+      POST(HASURA_URL,
+           add_headers(`x-hasura-admin-secret` = HASURA_SECRET),
+           content_type_json(),
+           body = toJSON(body, auto_unbox = TRUE),
+           timeout(300)),
+      error = function(e) { cat("[gql_read] attempt ", attempt, " err: ",
+                                conditionMessage(e), "\n", sep=""); NULL })
+    if (is.null(resp)) { Sys.sleep(0.5 * 2^(attempt-1)); next }
+    if (status_code(resp) %in% c(502,503,504)) {
+      cat("[gql_read] attempt ", attempt, " HTTP ", status_code(resp), "\n", sep="")
+      Sys.sleep(0.5 * 2^(attempt-1)); next
+    }
+    parsed <- fromJSON(content(resp, as = "text", encoding = "UTF-8"), flatten = TRUE)
+    if (!is.null(parsed$errors))
+      stop("GraphQL error: ", toJSON(parsed$errors, auto_unbox = TRUE))
+    return(parsed$data)
+  }
+  stop("gql_read: failed after ", max_retries, " attempts")
+}
+```
+
+# Pull (or reuse cache)
+
+```{r pull_variants}
+have_cache <- file.exists(variants_rds)
+
+if (!params$regenerate && have_cache) {
+  variants_long <- readRDS(variants_rds)
+  cat("reusing cached variants table:", variants_rds, "\n")
+} else {
+  query <- '
+  {
+    variants(
+      where: {
+        class: { _eq: "SNV" }
+        _or: [
+          { ref: { _eq: "G" }, alt: { _eq: "A" }, gene: { strand: { _eq: "+" } } }
+          { ref: { _eq: "C" }, alt: { _eq: "T" }, gene: { strand: { _eq: "-" } } }
+        ]
+        variants_features: { feature: { biotype: { name: { _eq: "protein_coding" } } } }
+        gene: {
+          genes_quantitative_scores: {
+            quantitative_score: { name: { _eq: "SFARI Gene Score" } }
+          }
+        }
+        variants_consequences: {
+          consequence: { name: { _in: ["StopGained", "Missense", "Splice"] } }
+        }
+        variants_guides: { edit_type: { _eq: "Fix" } }
+      }
+    ) {
+      id
+      ref
+      alt
+      gene { symbol strand }
+      variants_consequences(
+        where: { consequence: { name: { _in: ["StopGained", "Missense", "Splice"] } } }
+      ) { consequence { name } }
+      variants_guides(where: { edit_type: { _eq: "Fix" } }) {
+        guide { type hits_95 hits_90 hits_85 hits_100 }
+        bystanders_aggregate { aggregate { count } }
+        hi_cadd_bystanders: bystanders_aggregate(where: { cadd_phred: { _gte: 25 } }) {
+          aggregate { count }
+        }
+      }
+    }
+  }'
+
+  t0 <- Sys.time()
+  data <- gql_read(query)
+  cat("pull elapsed:", format(round(Sys.time() - t0, 1)), "\n")
+
+  variants_raw <- data$variants
+  cat("variants pulled:", nrow(variants_raw), "\n")
+
+  # Flatten: one row per variant with dna_hits / rna_hits / bystanders + consequence
+  pick_consequence <- function(cons_df) {
+    if (is.null(cons_df) || nrow(cons_df) == 0) return(NA_character_)
+    nms <- cons_df$consequence.name
+    if ("StopGained" %in% nms) return("Nonsense")
+    if ("Splice"     %in% nms) return("Splice")
+    if ("Missense"   %in% nms) return("Missense")
+    NA_character_
+  }
+  pick_guide_field <- function(guides_df, target_type, field) {
+    if (is.null(guides_df) || nrow(guides_df) == 0) return(NA_integer_)
+    m <- guides_df[guides_df$guide.type == target_type, , drop = FALSE]
+    if (nrow(m) == 0) return(NA_integer_)
+    as.integer(m[[field]][1])
+  }
+
+  variants_long <- data.frame(
+    variant_id  = variants_raw$id,
+    ref         = variants_raw$ref,
+    alt         = variants_raw$alt,
+    gene_symbol = variants_raw$gene.symbol,
+    gene_strand = variants_raw$gene.strand,
+    stringsAsFactors = FALSE
+  )
+  variants_long$consequence    <- vapply(variants_raw$variants_consequences, pick_consequence, character(1))
+  variants_long$dna_hits_95    <- vapply(variants_raw$variants_guides, pick_guide_field, integer(1),
+                                         target_type = "pre_mRNA",   field = "guide.hits_95")
+  variants_long$rna_hits_95    <- vapply(variants_raw$variants_guides, pick_guide_field, integer(1),
+                                         target_type = "mature_mRNA", field = "guide.hits_95")
+  variants_long$dna_hits_85    <- vapply(variants_raw$variants_guides, pick_guide_field, integer(1),
+                                         target_type = "pre_mRNA",   field = "guide.hits_85")
+  variants_long$rna_hits_85    <- vapply(variants_raw$variants_guides, pick_guide_field, integer(1),
+                                         target_type = "mature_mRNA", field = "guide.hits_85")
+  pick_bystander <- function(g, target_type, col) {
+    if (is.null(g) || nrow(g) == 0) return(NA_integer_)
+    m <- g[g$guide.type == target_type, , drop = FALSE]
+    if (nrow(m) == 0) return(NA_integer_)
+    as.integer(m[[col]][1])
+  }
+  variants_long$dna_bystanders         <- vapply(variants_raw$variants_guides, pick_bystander, integer(1),
+                                                 "pre_mRNA",   "bystanders_aggregate.aggregate.count")
+  variants_long$rna_bystanders         <- vapply(variants_raw$variants_guides, pick_bystander, integer(1),
+                                                 "mature_mRNA","bystanders_aggregate.aggregate.count")
+  variants_long$dna_bystanders_cadd25  <- vapply(variants_raw$variants_guides, pick_bystander, integer(1),
+                                                 "pre_mRNA",   "hi_cadd_bystanders.aggregate.count")
+  variants_long$rna_bystanders_cadd25  <- vapply(variants_raw$variants_guides, pick_bystander, integer(1),
+                                                 "mature_mRNA","hi_cadd_bystanders.aggregate.count")
+
+  saveRDS(variants_long, variants_rds)
+  cat("wrote:", variants_rds, "\n")
+}
+
+cat("variants:", nrow(variants_long), "\n")
+print(table(variants_long$consequence, useNA = "ifany"))
+cat("\nDNA guide coverage:", sum(!is.na(variants_long$dna_hits_95)), "/", nrow(variants_long), "\n")
+cat("RNA guide coverage:", sum(!is.na(variants_long$rna_hits_95)), "/", nrow(variants_long), "\n")
+```
+
+# Bin off-targets and build long table
+
+```{r bin_and_pivot}
+bin_count <- function(x, top = 5L) {
+  ifelse(is.na(x), NA_character_,
+         ifelse(x >= top, paste0(top, "+"), as.character(x)))
+}
+bin_levels <- c("0", "1", "2", "3", "4", "5+")
+
+variants_long$dna_bin <- factor(bin_count(variants_long$dna_hits_85), levels = bin_levels)
+variants_long$rna_bin <- factor(bin_count(variants_long$rna_hits_85), levels = bin_levels)
+variants_long$consequence <- factor(variants_long$consequence,
+                                    levels = c("Missense", "Nonsense", "Splice"))
+
+# Counts per (bin × consequence) for each axis
+plot_dna <- variants_long %>%
+  filter(!is.na(dna_bin), !is.na(consequence)) %>%
+  count(dna_bin, consequence, name = "n", .drop = FALSE)
+plot_rna <- variants_long %>%
+  filter(!is.na(rna_bin), !is.na(consequence)) %>%
+  count(rna_bin, consequence, name = "n", .drop = FALSE)
+
+totals_dna <- plot_dna %>% group_by(dna_bin) %>% summarise(Total = sum(n), .groups = "drop")
+totals_rna <- plot_rna %>% group_by(rna_bin) %>% summarise(Total = sum(n), .groups = "drop")
+
+saveRDS(list(plot_dna = plot_dna, totals_dna = totals_dna,
+             plot_rna = plot_rna, totals_rna = totals_rna,
+             bin_levels = bin_levels), plotdata_rds)
+
+write.csv(variants_long, source_data_csv, row.names = FALSE)
+cat("DNA totals:\n"); print(totals_dna)
+cat("\nRNA totals:\n"); print(totals_rna)
+```
+
+# Build panel D — DNA off-targets
+
+```{r panel_dna, fig.width=params$width, fig.height=params$height}
+n_dna <- sum(totals_dna$Total)
+
+p_dna <- ggplot(plot_dna,
+                aes(x = dna_bin, y = n, fill = consequence)) +
+  geom_col(width = 0.6, colour = "black", linewidth = 0.4) +
+  geom_text(
+    data = totals_dna,
+    aes(x = dna_bin, y = Total, label = format(Total, big.mark = ",")),
+    inherit.aes = FALSE,
+    vjust = -0.4, fontface = "bold", size = 3.5, family = "Nimbus Sans"
+  ) +
+  scale_fill_manual(values = consequence_fill, name = NULL,
+                    breaks = c("Missense", "Nonsense", "Splice")) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.18)),
+                     labels = comma) +
+  labs(
+    x = "Number of DNA off-target hits (85% identity)",
+    y = "Number of variants",
+    tag = "D"
+  ) +
+  theme_publication(base_size = 12, x_angle = 0, y_bold = TRUE) +
+  theme(
+    legend.position    = "top",
+    panel.grid.major.x = element_blank(),
+    plot.tag           = element_text(face = "bold", size = 16, family = "Nimbus Sans"),
+    plot.tag.position  = c(0, 1)
+  )
+print(p_dna)
+
+save_panel(p_dna, paste0(panel_id, "_dna"),
+           pdf_dir = out_main,
+           rds_dir = intermediate_dir,
+           width  = params$width,
+           height = params$height)
+```
+
+# Build panel D' — RNA off-targets
+
+```{r panel_rna, fig.width=params$width, fig.height=params$height}
+n_rna <- sum(totals_rna$Total)
+
+p_rna <- ggplot(plot_rna,
+                aes(x = rna_bin, y = n, fill = consequence)) +
+  geom_col(width = 0.6, colour = "black", linewidth = 0.4) +
+  geom_text(
+    data = totals_rna,
+    aes(x = rna_bin, y = Total, label = format(Total, big.mark = ",")),
+    inherit.aes = FALSE,
+    vjust = -0.4, fontface = "bold", size = 3.5, family = "Nimbus Sans"
+  ) +
+  scale_fill_manual(values = consequence_fill, name = NULL,
+                    breaks = c("Missense", "Nonsense", "Splice")) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.18)),
+                     labels = comma) +
+  labs(
+    x = "Number of RNA off-target hits (85% identity)",
+    y = "Number of variants",
+    tag = "D'"
+  ) +
+  theme_publication(base_size = 12, x_angle = 0, y_bold = TRUE) +
+  theme(
+    legend.position    = "top",
+    panel.grid.major.x = element_blank(),
+    plot.tag           = element_text(face = "bold", size = 16, family = "Nimbus Sans"),
+    plot.tag.position  = c(0, 1)
+  )
+print(p_rna)
+
+save_panel(p_rna, paste0(panel_id, "_rna"),
+           pdf_dir = out_main,
+           rds_dir = intermediate_dir,
+           width  = params$width,
+           height = params$height)
+```
+
+# Build panel E — bystander burden across all editable G>A variants
+
+X-axis: number of bystanders with CADD-phred ≥ 25 (deleterious-
+threshold bystanders).  Bins 0..5+, stacked by consequence.  No off-target
+hits filter — variants_long includes every G>A SFARI variant for which
+guides are defined.
+
+```{r panel_bystander, fig.width=params$width, fig.height=params$height}
+clean_subset <- variants_long %>%
+  filter(!is.na(dna_hits_85))
+clean_subset$bystander_bin <- factor(
+  bin_count(clean_subset$dna_bystanders_cadd25),
+  levels = bin_levels
+)
+
+plot_bys <- clean_subset %>%
+  filter(!is.na(bystander_bin), !is.na(consequence)) %>%
+  count(bystander_bin, consequence, name = "n", .drop = FALSE)
+totals_bys <- plot_bys %>%
+  group_by(bystander_bin) %>%
+  summarise(Total = sum(n), .groups = "drop")
+
+n_bys <- sum(totals_bys$Total)
+
+p_bys <- ggplot(plot_bys,
+                aes(x = bystander_bin, y = n, fill = consequence)) +
+  geom_col(width = 0.6, colour = "black", linewidth = 0.4) +
+  geom_text(
+    data = totals_bys,
+    aes(x = bystander_bin, y = Total, label = format(Total, big.mark = ",")),
+    inherit.aes = FALSE,
+    vjust = -0.4, fontface = "bold", size = 3.5, family = "Nimbus Sans"
+  ) +
+  scale_fill_manual(values = consequence_fill, name = NULL,
+                    breaks = c("Missense", "Nonsense", "Splice")) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.18)),
+                     labels = comma) +
+  labs(
+    x = "Number of bystander edits",
+    y = "Number of variants",
+    tag = "E"
+  ) +
+  theme_publication(base_size = 12, x_angle = 0, y_bold = TRUE) +
+  theme(
+    legend.position    = "top",
+    panel.grid.major.x = element_blank(),
+    plot.tag           = element_text(face = "bold", size = 16, family = "Nimbus Sans"),
+    plot.tag.position  = c(0, 1)
+  )
+print(p_bys)
+
+save_panel(p_bys, paste0(panel_id, "_bystander_cadd25"),
+           pdf_dir = out_main,
+           rds_dir = intermediate_dir,
+           width  = params$width,
+           height = params$height)
+
+# Companion CSV for the bystander panel
+wide_bys <- plot_bys %>%
+  pivot_wider(names_from = consequence, values_from = n, values_fill = 0) %>%
+  mutate(Total = rowSums(across(where(is.numeric))))
+write.csv(wide_bys,
+          file.path(out_supp_tables,
+                    paste0("Supp_Table_F1E_", panel_id, "_bystander_cadd25_wide.csv")),
+          row.names = FALSE)
+print(wide_bys)
+```
+
+# Alternate "gradient" versions (no fill legend)
+
+Bars coloured by bin using `bin_gradient` (green = safe → red = dangerous).
+No consequence stacking, no fill legend — the x-axis labels are the legend.
+Patterns for consequence will be layered on later.
+
+```{r panel_dna_gradient, fig.width=params$width, fig.height=params$height}
+make_gradient_panel <- function(totals, x_var, x_lab, tag_label, subtitle_text) {
+  ggplot(totals, aes(x = .data[[x_var]], y = Total, fill = .data[[x_var]])) +
+    geom_col(width = 0.6, colour = "black", linewidth = 0.4) +
+    geom_text(aes(label = format(Total, big.mark = ",")),
+              vjust = -0.4, fontface = "bold", size = 3.5,
+              family = "Nimbus Sans") +
+    scale_fill_manual(values = bin_gradient, guide = "none") +
+    scale_y_continuous(expand = expansion(mult = c(0, 0.18)), labels = comma) +
+    labs(x = x_lab, y = "Number of variants",
+         tag = tag_label, subtitle = subtitle_text) +
+    theme_publication(base_size = 12, x_angle = 0, y_bold = TRUE) +
+    theme(panel.grid.major.x = element_blank(),
+          plot.tag           = element_text(face = "bold", size = 16,
+                                            family = "Nimbus Sans"),
+          plot.tag.position  = c(0, 1))
+}
+
+p_dna_grad <- make_gradient_panel(
+  totals_dna, "dna_bin",
+  "Number of DNA off-target hits (85% identity)",
+  "D",
+  NULL
+)
+print(p_dna_grad)
+save_panel(p_dna_grad, paste0(panel_id, "_dna_gradient"),
+           pdf_dir = out_main, rds_dir = intermediate_dir,
+           width = params$width, height = params$height)
+
+p_bys_grad <- make_gradient_panel(
+  totals_bys, "bystander_bin",
+  "Number of bystander edits",
+  "E",
+  NULL
+)
+print(p_bys_grad)
+save_panel(p_bys_grad, paste0(panel_id, "_bystander_cadd25_gradient"),
+           pdf_dir = out_main, rds_dir = intermediate_dir,
+           width = params$width, height = params$height)
+```
+
+# Companion supp tables
+
+```{r supp_tables}
+wide_dna <- plot_dna %>%
+  pivot_wider(names_from = consequence, values_from = n, values_fill = 0) %>%
+  mutate(Total = rowSums(across(where(is.numeric))))
+wide_rna <- plot_rna %>%
+  pivot_wider(names_from = consequence, values_from = n, values_fill = 0) %>%
+  mutate(Total = rowSums(across(where(is.numeric))))
+
+write.csv(wide_dna,
+          file.path(out_supp_tables, paste0("Supp_Table_F1D_", panel_id, "_dna_wide.csv")),
+          row.names = FALSE)
+write.csv(wide_rna,
+          file.path(out_supp_tables, paste0("Supp_Table_F1D_", panel_id, "_rna_wide.csv")),
+          row.names = FALSE)
+
+cat("DNA wide:\n"); print(wide_dna)
+cat("\nRNA wide:\n"); print(wide_rna)
+```
+
+# Session info
+
+```{r}
+sessionInfo()
+```

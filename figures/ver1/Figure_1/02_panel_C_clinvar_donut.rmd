@@ -1,0 +1,238 @@
+---
+title: "Figure 1C — ClinVar Donuts (SFARI × ClinVar grid)"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: show
+    theme: flatly
+params:
+  regenerate:        false                                                      # FALSE: reload cached plot data
+  panel_id:          "Figure_1C_clinvar_donut"
+  cache_db:         ""
+  intermediate_dir: ""
+  out_main:         ""
+  out_supp_tables:  ""
+  width:             7
+  height:            6
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+root <- Sys.getenv("ASD_PAPER_ROOT")
+if (!nzchar(root)) stop("ASD_PAPER_ROOT is unset -- see figures/README.md")
+source(file.path(root, "figures", "_paths.R"))
+
+suppressPackageStartupMessages({
+  library(dplyr)
+  library(tidyr)
+  library(ggplot2)
+  library(scales)
+  library(scatterpie)
+  library(ggforce)     # geom_circle — donut holes that scale with the pie
+})
+
+source(asd_code("ver1", "_helpers.R"))  # theme_publication, save_panel
+
+panel_id        <- params$panel_id
+db_cache_path   <- asd_param_path(params$cache_db,         asd_db_snapshot("df_cds.rds"))
+intermediate_dir<- asd_param_path(params$intermediate_dir, asd_intermediate_dir())
+out_main        <- asd_param_path(params$out_main,         asd_panels_dir())
+out_supp_tables <- asd_param_path(params$out_supp_tables,  asd_supp_tables_dir("panels"))
+dir.create(intermediate_dir, showWarnings = FALSE, recursive = TRUE)
+dir.create(out_main,         showWarnings = FALSE, recursive = TRUE)
+dir.create(out_supp_tables,  showWarnings = FALSE, recursive = TRUE)
+
+plot_data_rds   <- file.path(intermediate_dir, paste0(panel_id, "_plotdata.rds"))
+ggplot_rds      <- file.path(intermediate_dir, paste0(panel_id, "_ggplot.rds"))
+source_data_csv <- file.path(intermediate_dir, paste0("Source_data_", panel_id, ".csv"))
+```
+
+# Plan
+
+3×3 grid of ClinVar donut pies.
+
+- **Y-axis**: SFARI gene score (1 = high-confidence ASD gene, 2 = strong, 3 = suggestive).
+- **X-axis**: ClinVar classification — Pathogenic / VUS / Benign.  (Per
+  the 11 Feb meeting: only three groups, no syndromic split.)
+- Each donut's **area** is proportional to the variant count in that bucket
+  (radius = √N normalized).
+- Each donut is split into **G>A** (the ADAR-treatable mismatch, in red2)
+  vs **other** (white).  The redder the donut → the more ADAR-treatable
+  variants in that SFARI × ClinVar cell.
+- Center label: total variant count in that bucket.
+
+ClinVar grouping rules (matches v4 RMD):
+
+| group | rule |
+|---|---|
+| Pathogenic | contains `"pathogenic"` AND NOT `"conflict"` AND NOT `"benign"` |
+| VUS        | contains `"uncertain"` |
+| Benign     | contains `"benign"` AND NOT `"pathogenic"` |
+
+Variants whose `CLIN_SIG` doesn't match any rule are dropped (they're
+"NA / Drug response / Other_assertion" rows).
+
+# Read cached snapshot
+
+```{r read_cache}
+stopifnot(file.exists(db_cache_path))
+df_cds <- readRDS(db_cache_path)
+cat("loaded:", db_cache_path, "—", nrow(df_cds), "variants\n")
+cat("with SFARI 1-3:", sum(df_cds$sfari_gene_score %in% c(1,2,3), na.rm = TRUE), "\n")
+cat("with ClinVar string:", sum(!is.na(df_cds$CLIN_SIG)), "\n")
+```
+
+# Compute plot data (or reload)
+
+```{r build_plot_data}
+have_plotdata <- file.exists(plot_data_rds)
+
+if (!params$regenerate && have_plotdata) {
+  cat("reusing cached plot data:", plot_data_rds, "\n")
+  bundle <- readRDS(plot_data_rds)
+  pie_plot_data   <- bundle$pie_plot_data
+  pie_base_data   <- bundle$pie_base_data
+  category_levels <- bundle$category_levels
+} else {
+  pie_base_data <- df_cds %>%
+    filter(sfari_gene_score %in% c(1, 2, 3)) %>%
+    mutate(
+      Category = case_when(
+        grepl("pathogenic", CLIN_SIG, ignore.case = TRUE) &
+          !grepl("conflict|benign", CLIN_SIG, ignore.case = TRUE) ~ "Pathogenic",
+        grepl("uncertain",  CLIN_SIG, ignore.case = TRUE)         ~ "VUS",
+        grepl("benign",     CLIN_SIG, ignore.case = TRUE) &
+          !grepl("pathogenic", CLIN_SIG, ignore.case = TRUE)      ~ "Benign",
+        TRUE                                                      ~ NA_character_
+      ),
+      Mutation_Type = ifelse(REF == "G" & ALT == "A", "G>A", "other")
+    ) %>%
+    filter(!is.na(Category))
+
+  category_levels <- c("Pathogenic", "VUS", "Benign")
+
+  pie_plot_data <- pie_base_data %>%
+    group_by(sfari_gene_score, Category, Mutation_Type) %>%
+    summarise(Count = n(), .groups = "drop") %>%
+    pivot_wider(names_from = Mutation_Type, values_from = Count, values_fill = 0) %>%
+    {                                              # ensure both pie cols always exist
+      if (!"G>A"   %in% names(.)) mutate(., `G>A` = 0) else .
+    } %>%
+    { if (!"other" %in% names(.)) mutate(., other = 0) else . } %>%
+    mutate(
+      Total  = `G>A` + other,
+      radius = sqrt(Total) / max(sqrt(Total)) * 0.45,
+      x_pos  = as.numeric(factor(Category, levels = category_levels)),
+      y_pos  = sfari_gene_score
+    )
+
+  saveRDS(list(
+    pie_plot_data   = pie_plot_data,
+    pie_base_data   = pie_base_data,
+    category_levels = category_levels
+  ), plot_data_rds)
+
+  write.csv(pie_plot_data, source_data_csv, row.names = FALSE)
+  cat("wrote:", plot_data_rds, "\n")
+  cat("wrote:", source_data_csv, "\n")
+}
+
+print(pie_plot_data)
+```
+
+# Build the panel
+
+```{r build_panel, fig.width=params$width, fig.height=params$height}
+slice_cols <- c("G>A", "other")
+custom_colors <- c("G>A" = "red2", "other" = "white")
+
+p <- ggplot() +
+  geom_scatterpie(
+    data = pie_plot_data,
+    aes(x = x_pos, y = y_pos, r = radius),
+    cols = slice_cols,
+    color = "black", linewidth = 0.7, alpha = 0.95
+  ) +
+  # Donut hole — white inner circle drawn in plot coordinates so it always
+  # scales correctly with the pie (50% of pie radius).  v4 RMD used
+  # geom_point with mm-scaled size; that broke for small pies.
+  geom_circle(
+    data = pie_plot_data,
+    aes(x0 = x_pos, y0 = y_pos, r = radius * 0.5),
+    fill = "white", colour = NA,
+    inherit.aes = FALSE
+  ) +
+  geom_text(
+    data = pie_plot_data,
+    aes(x = x_pos, y = y_pos, label = format(Total, big.mark = ",")),
+    fontface = "bold", size = 3.5, family = "Nimbus Sans",
+    inherit.aes = FALSE
+  ) +
+  scale_fill_manual(values = custom_colors,
+                    breaks = c("G>A", "other"),
+                    labels = c("G>A (ADAR-treatable)", "other"),
+                    name   = NULL) +
+  scale_x_continuous(breaks = 1:3, labels = category_levels,
+                     expand = expansion(mult = 0.25)) +
+  scale_y_continuous(breaks = 1:3, labels = c("1", "2", "3"),
+                     expand = expansion(mult = 0.25)) +
+  coord_fixed() +
+  labs(x = "ClinVar classification",
+       y = "SFARI gene score",
+       tag = "B") +    # was "C" — relabelled in composite v3 layout
+  theme_publication(base_size = 12, x_angle = 0, y_bold = TRUE) +
+  theme(
+    legend.position    = "top",
+    axis.ticks.x       = element_blank(),
+    axis.ticks.y       = element_blank(),
+    panel.grid.major   = element_line(color = "gray95"),
+    panel.grid.minor   = element_blank(),
+    plot.tag           = element_text(face = "bold", size = 16,
+                                      family = "Nimbus Sans"),
+    plot.tag.position  = c(0, 1)
+  )
+
+print(p)
+```
+
+# Save (PDF + ggplot RDS)
+
+```{r save}
+save_panel(p, panel_id,
+           pdf_dir = out_main,
+           rds_dir = intermediate_dir,
+           width  = params$width,
+           height = params$height)
+```
+
+# Companion summary table
+
+Per-bucket variant counts and G>A fraction — useful for the figure caption.
+
+```{r supp_table}
+summary_table <- pie_plot_data %>%
+  transmute(
+    `SFARI score`   = sfari_gene_score,
+    `ClinVar group` = Category,
+    `G>A`           = `G>A`,
+    `other`         = other,
+    Total           = Total,
+    `G>A pct`       = round(100 * `G>A` / pmax(Total, 1), 1)
+  ) %>%
+  arrange(`SFARI score`, factor(`ClinVar group`, levels = category_levels))
+
+write.csv(summary_table,
+          file.path(out_supp_tables,
+                    paste0("Supp_Table_F1C_", panel_id, "_summary.csv")),
+          row.names = FALSE)
+print(summary_table)
+```
+
+# Session info
+
+```{r}
+sessionInfo()
+```

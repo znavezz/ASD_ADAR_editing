@@ -1,0 +1,337 @@
+---
+title: "Figure 1B — Mismatch Type Distribution"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: show
+    theme: flatly
+params:
+  regenerate:        false                                                      # FALSE: reload cached ggplot, just re-save PDF
+  panel_id:          "Figure_1B_mismatch"
+  cache_db:         ""
+  intermediate_dir: ""
+  out_main:         ""
+  out_supp_tables:  ""
+  width:             8
+  height:            5
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+root <- Sys.getenv("ASD_PAPER_ROOT")
+if (!nzchar(root)) stop("ASD_PAPER_ROOT is unset -- see figures/README.md")
+source(file.path(root, "figures", "_paths.R"))
+
+suppressPackageStartupMessages({
+  library(dplyr)
+  library(tidyr)
+  library(ggplot2)
+  library(scales)
+  library(stringr)
+})
+
+# ggrepel resolves label collisions with random jitter, so an unseeded run places
+# domain labels differently every time. Nothing in the data moves -- only where a
+# label lands and how its leader line is drawn -- but it is the reason these
+# figures were not byte-reproducible. Seeded here so they are.
+set.seed(42)
+
+source(asd_code("ver1", "_helpers.R"))  # theme_publication, fig_colors, mismatch_fill, consequence_fill, save_panel
+
+# Resolve paths (relative to this rmd)
+here_rmd <- function(p) normalizePath(p, mustWork = FALSE)
+panel_id        <- params$panel_id
+db_cache_path   <- asd_param_path(params$cache_db, asd_db_snapshot("df_cds.rds"))
+intermediate_dir<- asd_param_path(params$intermediate_dir, asd_intermediate_dir())
+out_main        <- asd_param_path(params$out_main, asd_panels_dir())
+out_supp_tables <- asd_param_path(params$out_supp_tables, asd_supp_tables_dir("panels"))
+dir.create(intermediate_dir, showWarnings = FALSE, recursive = TRUE)
+dir.create(out_main,         showWarnings = FALSE, recursive = TRUE)
+dir.create(out_supp_tables,  showWarnings = FALSE, recursive = TRUE)
+
+plot_data_rds   <- file.path(intermediate_dir, paste0(panel_id, "_plotdata.rds"))
+ggplot_rds      <- file.path(intermediate_dir, paste0(panel_id, "_ggplot.rds"))
+source_data_csv <- file.path(intermediate_dir, paste0("Source_data_", panel_id, ".csv"))
+totals_csv      <- file.path(intermediate_dir, paste0("Totals_",      panel_id, ".csv"))
+```
+
+# Plan
+
+Stacked bar of variant counts per mismatch type (12 types).  Within each
+bar, segments coloured by consequence — Missense / Nonsense / Splice /
+Synonymous / Start Lost.  Bars sorted by total count, descending.  Total
+count printed above each bar.
+
+The ADAR-treatable mismatch is **G>A** on the gene-sense strand (it
+becomes A>G on the mRNA, then ADAR edits A→I).  Strand correction was
+already applied in `00_prep_data.rmd`, so `REF`/`ALT` here are
+gene-sense; G>A is what we expect to see prominent.
+
+# Read cached snapshot
+
+```{r read_cache}
+stopifnot(file.exists(db_cache_path))
+df_cds <- readRDS(db_cache_path)
+cat("loaded:", db_cache_path, "—", nrow(df_cds), "variants\n")
+```
+
+# Compute plot data (or reload)
+
+If `regenerate=FALSE` and the plot-data cache exists, just reload it —
+this lets us tweak colours / theme without re-running the count.
+
+```{r build_plot_data}
+have_plotdata <- file.exists(plot_data_rds)
+
+if (!params$regenerate && have_plotdata) {
+  cat("reusing cached plot data:", plot_data_rds, "\n")
+  bundle <- readRDS(plot_data_rds)
+  plot_data <- bundle$plot_data
+  totals    <- bundle$totals
+} else {
+  # SNVs only (single base on each side) — REF/ALT are already strand-corrected
+  plot_data <- df_cds %>%
+    filter(nchar(REF) == 1L, nchar(ALT) == 1L) %>%
+    mutate(
+      Mutation_Type = paste0(REF, ">", ALT),
+      first_cons    = sapply(str_split(New_Consequence, ","), `[`, 1),
+      Simple_consequence = case_when(
+        first_cons == "Nonsense"   ~ "Nonsense",
+        first_cons == "Splice"     ~ "Splice",
+        first_cons == "Missense"   ~ "Missense",
+        first_cons == "Synonymous" ~ "Synonymous",
+        first_cons == "Start_lost" ~ "Start Lost",
+        TRUE                       ~ NA_character_
+      )
+    ) %>%
+    filter(!is.na(Simple_consequence)) %>%
+    count(Mutation_Type, Simple_consequence, name = "n")
+
+  totals <- plot_data %>%
+    group_by(Mutation_Type) %>%
+    summarise(Total_N = sum(n), .groups = "drop") %>%
+    arrange(desc(Total_N))
+
+  # Lock factor orders so the plot is reproducible from the rds
+  mt_order <- totals$Mutation_Type
+  cons_order <- c("Missense", "Nonsense", "Splice", "Synonymous", "Start Lost")
+  plot_data$Mutation_Type      <- factor(plot_data$Mutation_Type,      levels = mt_order)
+  plot_data$Simple_consequence <- factor(plot_data$Simple_consequence, levels = cons_order)
+  totals$Mutation_Type         <- factor(totals$Mutation_Type,         levels = mt_order)
+
+  saveRDS(list(plot_data = plot_data, totals = totals), plot_data_rds)
+  write.csv(plot_data, source_data_csv, row.names = FALSE)
+  write.csv(totals,    totals_csv,      row.names = FALSE)
+  cat("wrote:", plot_data_rds, "\n")
+  cat("wrote:", source_data_csv, "\n")
+}
+
+print(totals)
+```
+
+# Build the panel
+
+If a cached ggplot RDS exists and `regenerate=FALSE`, we reload it
+(useful when downstream composers re-run the figure) — *unless* you've
+edited the helpers, in which case rebuild from `plot_data`.
+
+```{r build_panel, fig.width=params$width, fig.height=params$height}
+have_ggplot <- file.exists(ggplot_rds)
+
+# Always rebuild from plot_data when we just recomputed it; otherwise
+# rebuild anyway so palette edits in _helpers.R land.  Reloading the RDS
+# is only useful for the composer, not for in-panel iteration.
+p <- ggplot(plot_data,
+            aes(x = Mutation_Type, y = n, fill = Simple_consequence)) +
+  geom_col(width = 0.75, colour = "black", linewidth = 0.3) +
+  geom_text(
+    data = totals,
+    aes(x = Mutation_Type, y = Total_N, label = format(Total_N, big.mark = ",")),
+    inherit.aes = FALSE,
+    vjust = -0.4, fontface = "bold", size = 3.5,
+    family = "Nimbus Sans"
+  ) +
+  scale_fill_manual(values = consequence_fill, name = NULL,
+                    breaks = c("Missense", "Nonsense", "Splice",
+                               "Synonymous", "Start Lost")) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.15)),
+                     labels = comma) +
+  labs(x = "mismatch type", y = "number of variants",
+       tag = "B") +
+  theme_publication(base_size = 12, x_angle = 0, y_bold = TRUE) +
+  theme(
+    legend.position    = "top",
+    legend.justification= "center",
+    panel.grid.major.x = element_blank(),
+    plot.tag           = element_text(face = "bold", size = 16,
+                                      family = "Nimbus Sans"),
+    plot.tag.position  = c(0, 1)
+  )
+
+print(p)
+```
+
+# Save (PDF + ggplot RDS)
+
+```{r save}
+save_panel(p, panel_id,
+           pdf_dir = out_main,
+           rds_dir = intermediate_dir,
+           width  = params$width,
+           height = params$height)
+```
+
+# G>A-only version: single bar with in-segment count labels
+
+Requested by the collaborators: a focused version of Panel B that drops the other 11
+mismatches and shows only the G>A column.  Counts are written **inside
+each consequence rectangle** (the bar's segments).  For segments too
+small to hold a label (e.g. Start Lost = 1), `ggrepel` puts the label
+outside with a leader line.
+
+```{r panel_b_ga_only, fig.width=8, fig.height=2.4}
+suppressPackageStartupMessages(library(ggrepel))
+
+ga_only <- plot_data %>%
+  filter(Mutation_Type == "G>A") %>%
+  # Custom order so leader-label segments (Start Lost, Nonsense) sit at the
+  # LEFT and in-segment-label segments (Splice, Synonymous) sit at the RIGHT,
+  # with giant Missense anchoring the middle.  Separates the two label
+  # styles into different zones so they don't crowd each other.
+  arrange(match(as.character(Simple_consequence),
+                c("Start Lost", "Nonsense", "Missense", "Splice", "Synonymous")))
+ga_only$xmax <- cumsum(ga_only$n)
+ga_only$xmin <- ga_only$xmax - ga_only$n
+ga_only$xmid <- (ga_only$xmin + ga_only$xmax) / 2
+ga_only$label <- format(ga_only$n, big.mark = ",")
+
+# Inside label: "Consequence\nN" (legend dropped)
+ga_only$inside_label <- paste0(ga_only$Simple_consequence, "\n", ga_only$label)
+
+ga_total <- sum(ga_only$n)
+# All consequence labels go ABOVE the bar via ggrepel — no in-segment text.
+ga_only$inside <- FALSE
+
+# Build a small dataframe for the above-the-bar leader labels.
+get_n    <- function(nm) ga_only$n   [as.character(ga_only$Simple_consequence) == nm]
+get_xmid <- function(nm) ga_only$xmid[as.character(ga_only$Simple_consequence) == nm]
+get_xmin <- function(nm) ga_only$xmin[as.character(ga_only$Simple_consequence) == nm]
+get_xmax <- function(nm) ga_only$xmax[as.character(ga_only$Simple_consequence) == nm]
+
+above_labels <- data.frame(
+  x = c(
+    (get_xmin("Start Lost") + get_xmax("Nonsense")) / 2,
+    get_xmid("Missense"),
+    get_xmid("Splice"),
+    get_xmid("Synonymous")
+  ),
+  label = c(
+    sprintf("Nonsense: %s\nStart Lost: %s",
+            format(get_n("Nonsense"),   big.mark = ","),
+            format(get_n("Start Lost"), big.mark = ",")),
+    sprintf("Missense: %s",   format(get_n("Missense"),   big.mark = ",")),
+    sprintf("Splice: %s",     format(get_n("Splice"),     big.mark = ",")),
+    sprintf("Synonymous: %s", format(get_n("Synonymous"), big.mark = ","))
+  ),
+  stringsAsFactors = FALSE
+)
+
+# Grayscale by severity: light (Synonymous) -> near black (Start Lost).
+# Strictly monochrome for B&W publication; ordering follows the severity
+# ranking used in the earlier colour palette.
+ga_consequence_fill <- c(
+  "Synonymous" = "#EAEAEA",   # very light gray  (mild)
+  "Missense"   = "#BFBFBF",   # light-medium
+  "Splice"     = "#888888",   # medium
+  "Nonsense"   = "#4D4D4D",   # dark gray
+  "Start Lost" = "#1A1A1A"    # near black (most severe)
+)
+# All labels live ABOVE the bar (no in-segment text) so black on white is fine.
+ga_only$text_colour <- "black"
+
+# Immediately before the repel call, not at the top of the file: any code
+# between the two advances the RNG, so a distant seed does not pin the
+# label layout. This is why an earlier seeding attempt fixed Figure S1 but
+# left Figures 1 and 3 varying run to run.
+set.seed(42)
+p_ga <- ggplot(ga_only) +
+  geom_rect(
+    aes(xmin = xmin, xmax = xmax, ymin = -0.4, ymax = 0.4,
+        fill = Simple_consequence),
+    colour = "black", linewidth = 0.4
+  ) +
+  # In-segment labels
+  geom_text(
+    data = subset(ga_only, inside),
+    aes(x = xmid, y = 0, label = inside_label, colour = I(text_colour)),
+    fontface = "bold", size = 4, family = "Nimbus Sans",
+    lineheight = 0.9
+  ) +
+  # Outside labels with leader lines above the bar:
+  #   - Nonsense + Start Lost combined into one two-line label
+  #   - Splice and Synonymous each as their own label (avoids in-segment overlap)
+  geom_text_repel(seed = 42, 
+    data = above_labels,
+    aes(x = x, y = 0.4, label = label),
+    nudge_y = 0.75, hjust = 0.5, direction = "x",
+    size = 3.6, family = "Nimbus Sans", fontface = "bold",
+    lineheight = 0.9,
+    segment.colour = "grey40", segment.size = 0.4,
+    min.segment.length = 0, box.padding = 0.35
+  ) +
+  scale_fill_manual(values = ga_consequence_fill, guide = "none") +
+  # Extra right padding so the cluster of small segments + outside labels
+  # at the bar's right end has breathing room.
+  scale_x_continuous(expand = expansion(mult = c(0.02, 0.30)),
+                     labels = comma) +
+  scale_y_continuous(limits = c(-1.4, 1.7), expand = expansion(0)) +
+  labs(x = NULL, y = NULL, tag = "C") +
+  theme_publication(base_size = 12, x_angle = 0, y_bold = TRUE) +
+  theme(
+    legend.position    = "none",
+    axis.text.x        = element_blank(),
+    axis.text.y        = element_blank(),
+    axis.ticks.x       = element_blank(),
+    axis.ticks.y       = element_blank(),
+    axis.line.x        = element_blank(),
+    axis.line.y        = element_blank(),
+    axis.title.x       = element_blank(),
+    axis.title.y       = element_blank(),
+    panel.grid.major   = element_blank(),
+    plot.tag           = element_text(face = "bold", size = 16,
+                                      family = "Nimbus Sans"),
+    plot.tag.position  = c(0, 1)
+  )
+print(p_ga)
+
+save_panel(p_ga, paste0(panel_id, "_GA_only"),
+           pdf_dir = out_main,
+           rds_dir = intermediate_dir,
+           width  = 8,
+           height = 2.4)
+```
+
+# Companion supp table (wide)
+
+```{r supp_table}
+wide <- plot_data %>%
+  pivot_wider(names_from  = Simple_consequence,
+              values_from = n,
+              values_fill = 0) %>%
+  mutate(Total = rowSums(across(where(is.numeric)))) %>%
+  arrange(desc(Total))
+
+write.csv(wide,
+          file.path(out_supp_tables, paste0("Supp_Table_F1B_", panel_id, "_wide.csv")),
+          row.names = FALSE)
+print(wide)
+```
+
+# Session info
+
+```{r}
+sessionInfo()
+```

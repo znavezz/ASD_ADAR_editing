@@ -1,0 +1,138 @@
+## ENSEMBL VARIANT EFFECT PREDICTOR v113.0
+## Output produced at 2026-05-07 20:03:48
+## Using cache in /data/vep/homo_sapiens/113_GRCh37
+## Using API version 113, DB version ?
+## ensembl version 113.58650ec
+## ensembl-compara version 113.9cf749d
+## ensembl-funcgen version 113.e30608c
+## ensembl-io version 113.bee6816
+## ensembl-variation version 113.ebfce74
+## 1000genomes version phase3
+## COSMIC version 98
+## ClinVar version 202306
+## HGMD-PUBLIC version 20204
+## assembly version GRCh37.p13
+## dbSNP version 156
+## gencode version GENCODE 19
+## genebuild version 2011-04
+## gnomADe version r2.1
+## polyphen version 2.2.2
+## regbuild version 1.0
+## sift version sift5.2.2
+## Column descriptions:
+## Uploaded_variation : Identifier of uploaded variant
+## Location : Location of variant in standard coordinate format (chr:start or chr:start-end)
+## Allele : The variant allele used to calculate the consequence
+## Gene : Stable ID of affected gene
+## Feature : Stable ID of feature
+## Feature_type : Type of feature - Transcript, RegulatoryFeature or MotifFeature
+## Consequence : Consequence type
+## cDNA_position : Relative position of base pair in cDNA sequence
+## CDS_position : Relative position of base pair in coding sequence
+## Protein_position : Relative position of amino acid in protein
+## Amino_acids : Reference and variant amino acids
+## Codons : Reference and variant codon sequence
+## Existing_variation : Identifier(s) of co-located known variants
+## Extra column keys:
+## IMPACT : Subjective impact classification of consequence type
+## DISTANCE : Shortest distance from variant to transcript
+## STRAND : Strand of the feature (1/-1)
+## FLAGS : Transcript quality flags
+## VARIANT_CLASS : SO variant class
+## SYMBOL : Gene symbol (e.g. HGNC)
+## SYMBOL_SOURCE : Source of gene symbol
+## HGNC_ID : Stable identifer of HGNC gene symbol
+## BIOTYPE : Biotype of transcript or regulatory feature
+## CANONICAL : Indicates if transcript is canonical for this gene
+## MANE : MANE (Matched Annotation from NCBI and EMBL-EBI) set(s) the transcript belongs to
+## MANE_SELECT : MANE Select (Matched Annotation from NCBI and EMBL-EBI) Transcript
+## MANE_PLUS_CLINICAL : MANE Plus Clinical (Matched Annotation from NCBI and EMBL-EBI) Transcript
+## TSL : Transcript support level
+## APPRIS : Annotates alternatively spliced transcripts as primary or alternate based on a range of computational methods
+## CCDS : Indicates if transcript is a CCDS transcript
+## ENSP : Protein identifer
+## SWISSPROT : UniProtKB/Swiss-Prot accession
+## TREMBL : UniProtKB/TrEMBL accession
+## UNIPARC : UniParc accession
+## UNIPROT_ISOFORM : Direct mappings to UniProtKB isoforms
+## SOURCE : Source of transcript
+## GENE_PHENO : Indicates if gene is associated with a phenotype, disease or trait
+## SIFT : SIFT prediction and/or score
+## PolyPhen : PolyPhen prediction and/or score
+## EXON : Exon number(s) / total
+## INTRON : Intron number(s) / total
+## DOMAINS : The source and identifer of any overlapping protein domains
+## miRNA : SO terms of overlapped miRNA secondary structure feature(s)
+## HGVSc : HGVS coding sequence name
+## HGVSp : HGVS protein sequence name
+## HGVS_OFFSET : Indicates by how many bases the HGVS notations for this variant have been shifted
+## AF : Frequency of existing variant in 1000 Genomes combined population
+## AFR_AF : Frequency of existing variant in 1000 Genomes combined African population
+## AMR_AF : Frequency of existing variant in 1000 Genomes combined American population
+## EAS_AF : Frequency of existing variant in 1000 Genomes combined East Asian population
+## EUR_AF : Frequency of existing variant in 1000 Genomes combined European population
+## SAS_AF : Frequency of existing variant in 1000 Genomes combined South Asian population
+## gnomADe_AF : Frequency of existing variant in gnomAD exomes combined population
+## gnomADe_AFR_AF : Frequency of existing variant in gnomAD exomes African/American population
+## gnomADe_AMR_AF : Frequency of existing variant in gnomAD exomes American population
+## gnomADe_ASJ_AF : Frequency of existing variant in gnomAD exomes Ashkenazi Jewish population
+## gnomADe_EAS_AF : Frequency of existing variant in gnomAD exomes East Asian population
+## gnomADe_FIN_AF : Frequency of existing variant in gnomAD exomes Finnish population
+## gnomADe_MID_AF : Frequency of existing variant in gnomAD exomes Mid-eastern population
+## gnomADe_NFE_AF : Frequency of existing variant in gnomAD exomes Non-Finnish European population
+## gnomADe_REMAINING_AF : Frequency of existing variant in gnomAD exomes remaining combined populations
+## gnomADe_SAS_AF : Frequency of existing variant in gnomAD exomes South Asian population
+## gnomADg_AF : Frequency of existing variant in gnomAD genomes combined population
+## gnomADg_AFR_AF : Frequency of existing variant in gnomAD genomes African/American population
+## gnomADg_AMI_AF : Frequency of existing variant in gnomAD genomes Amish population
+## gnomADg_AMR_AF : Frequency of existing variant in gnomAD genomes American population
+## gnomADg_ASJ_AF : Frequency of existing variant in gnomAD genomes Ashkenazi Jewish population
+## gnomADg_EAS_AF : Frequency of existing variant in gnomAD genomes East Asian population
+## gnomADg_FIN_AF : Frequency of existing variant in gnomAD genomes Finnish population
+## gnomADg_MID_AF : Frequency of existing variant in gnomAD genomes Mid-eastern population
+## gnomADg_NFE_AF : Frequency of existing variant in gnomAD genomes Non-Finnish European population
+## gnomADg_REMAINING_AF : Frequency of existing variant in gnomAD genomes remaining combined populations
+## gnomADg_SAS_AF : Frequency of existing variant in gnomAD genomes South Asian population
+## MAX_AF : Maximum observed allele frequency in 1000 Genomes, ESP and ExAC/gnomAD
+## MAX_AF_POPS : Populations in which maximum allele frequency was observed
+## CLIN_SIG : ClinVar clinical significance of the dbSNP variant
+## SOMATIC : Somatic status of existing variant
+## PHENO : Indicates if existing variant(s) is associated with a phenotype, disease or trait; multiple values correspond to multiple variants
+## PUBMED : Pubmed ID(s) of publications that cite existing variant
+## MOTIF_NAME : The stable identifier of a transcription factor binding profile (TFBP) aligned at this position
+## MOTIF_POS : The relative position of the variation in the aligned TFBP
+## HIGH_INF_POS : A flag indicating if the variant falls in a high information position of the TFBP
+## MOTIF_SCORE_CHANGE : The difference in motif score of the reference and variant sequences for the TFBP
+## TRANSCRIPTION_FACTORS : List of transcription factors which bind to the transcription factor binding profile
+## am_class : The AlphaMissense thresholds are: 'Likely benign' if score < 0.34, 'Likely pathogenic' if score > 0.564, 'ambiguous' otherwise -- see doi.org/10.1126/science.adg7492 for details; column from /data/vep/Plugins/AlphaMissense_hg19.tsv.gz
+## am_genome : column from /data/vep/Plugins/AlphaMissense_hg19.tsv.gz
+## am_pathogenicity : Continuous AlphaMissense score between 0 and 1 which can be interpreted as the predicted probability of the variant being pathogenic; column from /data/vep/Plugins/AlphaMissense_hg19.tsv.gz
+## am_protein_variant : Amino acid change used in AlphaMissense prediction; column from /data/vep/Plugins/AlphaMissense_hg19.tsv.gz
+## am_transcript_id : Transcript sequence in AlphaMissense prediction; column from /data/vep/Plugins/AlphaMissense_hg19.tsv.gz
+## am_uniprot_id : Protein isoform used in AlphaMissense prediction; column from /data/vep/Plugins/AlphaMissense_hg19.tsv.gz
+## BLOSUM62 : BLOSUM62 substitution score for the reference and alternative amino acids
+## LoFtool : LoFtool score for gene
+## MaveDB_nt : MaveDB HGVS (nucleotide); column from MaveDB_variants.tsv.gz
+## MaveDB_pro : MaveDB HGVS (protein); column from MaveDB_variants.tsv.gz
+## MaveDB_score : MaveDB score - see MaveDB for interpretation of scores; column from MaveDB_variants.tsv.gz
+## MaveDB_urn : MaveDB database identifier; column from MaveDB_variants.tsv.gz
+## NMD : Nonsense-mediated mRNA decay escaping variants prediction
+## pLI_gene_value : pLI value by gene
+## PhastCons100 : [PATH]/hg19.100way.phastCons.bw
+## VEP command-line: vep --assembly GRCh37 --buffer_size 10000 --cache --custom file=[PATH]/hg19.100way.phastCons.bw,short_name=PhastCons100,format=bigwig --database 0 --dir_cache [PATH]/vep --dir_plugins /plugins --everything --fasta [PATH]/all.fa --fork 64 --input_file [PATH]/varicarta_standard_positive_clean_variants.vcf --offline --output_file [PATH]/varicarta_vepped.txt --pick --plugin AlphaMissense,file=[PATH]/AlphaMissense_hg19.tsv.gz,cols=all --plugin Blosum62 --plugin LoFtool,[PATH]/LoFtool_scores.txt --plugin MaveDB,file=[PATH]/MaveDB_variants.tsv.gz --plugin NMD --plugin pLI,[PATH]/pLI_values.txt --polyphen b --protein --sift b --transcript_version
+#Uploaded_variation	Location	Allele	Gene	Feature	Feature_type	Consequence	cDNA_position	CDS_position	Protein_position	Amino_acids	Codons	Existing_variation	Extra
+11:4566422:T:C	11:4566422	C	ENSG00000197790	ENST00000360213.1	Transcript	start_lost	2	2	1	M/T	aTg/aCg	rs200827986	IMPACT=HIGH;STRAND=1;VARIANT_CLASS=SNV;SYMBOL=OR52M1;SYMBOL_SOURCE=HGNC;HGNC_ID=15225;BIOTYPE=protein_coding;CANONICAL=YES;CCDS=CCDS31353.1;ENSP=ENSP00000353343;SWISSPROT=O52M1_HUMAN;UNIPARC=UPI0000041C62;SIFT=deleterious_low_confidence(0);PolyPhen=benign(0.212);EXON=1/1;DOMAINS=PANTHER:PTHR26450,PANTHER:PTHR26450:SF129;HGVSc=ENST00000360213.1:c.2T>C;HGVSp=ENSP00000353343.1:p.Met1?;gnomADe_AF=3.674e-05;gnomADe_AFR_AF=0;gnomADe_AMR_AF=0;gnomADe_ASJ_AF=0.001178;gnomADe_EAS_AF=0;gnomADe_FIN_AF=0;gnomADe_NFE_AF=0;gnomADe_SAS_AF=0;MAX_AF=0.001178;MAX_AF_POPS=gnomADe_ASJ;BLOSUM62=-1;LoFtool=0.944;PhastCons100=0.991999983787537;pLI_gene_value=0.00
+1:103616:CTTTTTTTT:CTTTT	1:103621-103624	-	ENSG00000238009	ENST00000466430.1	Transcript	intron_variant,non_coding_transcript_variant	-	-	-	-	-	-	IMPACT=MODIFIER;STRAND=-1;VARIANT_CLASS=deletion;SYMBOL=RP11-34P13.7;SYMBOL_SOURCE=Clone_based_vega_gene;BIOTYPE=lincRNA;CANONICAL=YES;INTRON=2/3;HGVSc=ENST00000466430.1:n.263+9080_263+9083del;HGVS_OFFSET=-4;MINIMISED=1;PhastCons100=0.034000001847744,0.0370000004768372,0.0390000008046627,0.0410000011324883
+1:10725142:G:C	1:10725142	C	ENSG00000130940	ENST00000377022.3	Transcript	stop_gained,splice_region_variant	821	503	168	S/*	tCa/tGa	-	IMPACT=HIGH;STRAND=-1;VARIANT_CLASS=SNV;SYMBOL=CASZ1;SYMBOL_SOURCE=HGNC;HGNC_ID=26002;BIOTYPE=protein_coding;CANONICAL=YES;CCDS=CCDS41246.1;ENSP=ENSP00000366221;SWISSPROT=CASZ1_HUMAN;UNIPARC=UPI0000EBB7D6;GENE_PHENO=1;EXON=5/21;DOMAINS=PANTHER:PTHR12451;HGVSc=ENST00000377022.3:c.503C>G;HGVSp=ENSP00000366221.3:p.Ser168Ter;LoFtool=0.002;PhastCons100=1;pLI_gene_value=1.00
+1:2234752:G:A	1:2234752	A	ENSG00000157933	ENST00000378536.4	Transcript	missense_variant	1196	1124	375	R/H	cGc/cAc	rs762209697,COSV66012936	IMPACT=MODERATE;STRAND=1;VARIANT_CLASS=SNV;SYMBOL=SKI;SYMBOL_SOURCE=HGNC;HGNC_ID=10896;BIOTYPE=protein_coding;CANONICAL=YES;CCDS=CCDS39.1;ENSP=ENSP00000367797;SWISSPROT=SKI_HUMAN;TREMBL=Q7Z462_HUMAN,Q7Z461_HUMAN,Q7Z459_HUMAN;UNIPARC=UPI00001359DE;GENE_PHENO=1;SIFT=deleterious(0.02);PolyPhen=probably_damaging(0.996);EXON=3/7;DOMAINS=PANTHER:PTHR10005:SF15,PANTHER:PTHR10005;HGVSc=ENST00000378536.4:c.1124G>A;HGVSp=ENSP00000367797.4:p.Arg375His;gnomADe_AF=7.959e-06;gnomADe_AFR_AF=6.154e-05;gnomADe_AMR_AF=0;gnomADe_ASJ_AF=0;gnomADe_EAS_AF=0;gnomADe_FIN_AF=0;gnomADe_NFE_AF=8.795e-06;gnomADe_SAS_AF=0;MAX_AF=6.154e-05;MAX_AF_POPS=gnomADe_AFR;CLIN_SIG=uncertain_significance;SOMATIC=0,1;PHENO=1,1;BLOSUM62=0;PhastCons100=1;am_class=pathogenic;am_genome=hg19;am_pathogenicity=0.6264;am_protein_variant=R375H;am_transcript_id=ENST00000378536.4;am_uniprot_id=P12755;pLI_gene_value=0.98
+1:2234766:C:T	1:2234766	T	ENSG00000157933	ENST00000378536.4	Transcript	stop_gained	1210	1138	380	R/*	Cga/Tga	rs1640474693,COSV66014885	IMPACT=HIGH;STRAND=1;VARIANT_CLASS=SNV;SYMBOL=SKI;SYMBOL_SOURCE=HGNC;HGNC_ID=10896;BIOTYPE=protein_coding;CANONICAL=YES;CCDS=CCDS39.1;ENSP=ENSP00000367797;SWISSPROT=SKI_HUMAN;TREMBL=Q7Z462_HUMAN,Q7Z461_HUMAN,Q7Z459_HUMAN;UNIPARC=UPI00001359DE;GENE_PHENO=1;EXON=3/7;DOMAINS=PANTHER:PTHR10005:SF15,PANTHER:PTHR10005;HGVSc=ENST00000378536.4:c.1138C>T;HGVSp=ENSP00000367797.4:p.Arg380Ter;CLIN_SIG=uncertain_significance;SOMATIC=0,1;PHENO=1,1;PhastCons100=1;pLI_gene_value=0.98
+1:2237536:G:T	1:2237536	T	ENSG00000157933	ENST00000378536.4	Transcript	missense_variant	1917	1845	615	E/D	gaG/gaT	-	IMPACT=MODERATE;STRAND=1;VARIANT_CLASS=SNV;SYMBOL=SKI;SYMBOL_SOURCE=HGNC;HGNC_ID=10896;BIOTYPE=protein_coding;CANONICAL=YES;CCDS=CCDS39.1;ENSP=ENSP00000367797;SWISSPROT=SKI_HUMAN;TREMBL=Q7Z462_HUMAN,Q7Z461_HUMAN,Q7Z459_HUMAN;UNIPARC=UPI00001359DE;GENE_PHENO=1;SIFT=deleterious(0.01);PolyPhen=probably_damaging(0.978);EXON=6/7;DOMAINS=PANTHER:PTHR10005:SF15,PANTHER:PTHR10005,Coiled-coils_(Ncoils):Coil;HGVSc=ENST00000378536.4:c.1845G>T;HGVSp=ENSP00000367797.4:p.Glu615Asp;BLOSUM62=2;PhastCons100=1;am_class=pathogenic;am_genome=hg19;am_pathogenicity=0.9019;am_protein_variant=E615D;am_transcript_id=ENST00000378536.4;am_uniprot_id=P12755;pLI_gene_value=0.98
+1:46658987:C:T	1:46658987	T	ENSG00000085998	ENST00000371992.1	Transcript	missense_variant	1751	1100	367	R/H	cGc/cAc	rs762972459,CM074440	IMPACT=MODERATE;STRAND=-1;VARIANT_CLASS=SNV;SYMBOL=POMGNT1;SYMBOL_SOURCE=HGNC;HGNC_ID=19139;BIOTYPE=protein_coding;CANONICAL=YES;CCDS=CCDS57995.1;ENSP=ENSP00000361060;TREMBL=Q5VST3_HUMAN;UNIPARC=UPI0000458AF4;GENE_PHENO=1;PolyPhen=probably_damaging(1);EXON=12/23;DOMAINS=Gene3D:3.90.550.10,Pfam:PF03071,PANTHER:PTHR10468,PANTHER:PTHR10468:SF4,Superfamily:SSF53448;HGVSc=ENST00000371992.1:c.1100G>A;HGVSp=ENSP00000361060.1:p.Arg367His;gnomADe_AF=1.199e-05;gnomADe_AFR_AF=0;gnomADe_AMR_AF=0;gnomADe_ASJ_AF=0;gnomADe_EAS_AF=0;gnomADe_FIN_AF=0;gnomADe_NFE_AF=2.651e-05;gnomADe_SAS_AF=0;MAX_AF=2.651e-05;MAX_AF_POPS=gnomADe_NFE;CLIN_SIG=uncertain_significance,conflicting_interpretations_of_pathogenicity,likely_pathogenic;PHENO=1,1;PUBMED=17878207;BLOSUM62=0;LoFtool=0.459;PhastCons100=1;am_class=pathogenic;am_genome=hg19;am_pathogenicity=0.9851;am_protein_variant=R367H;am_transcript_id=ENST00000371984.3;am_uniprot_id=Q8WZA1;pLI_gene_value=0.00
+1:840685:G:GT	1:840685-840686	T	ENSG00000272438	ENST00000607769.1	Transcript	intron_variant,non_coding_transcript_variant	-	-	-	-	-	-	IMPACT=MODIFIER;STRAND=1;VARIANT_CLASS=insertion;SYMBOL=RP11-54O7.16;SYMBOL_SOURCE=Clone_based_vega_gene;BIOTYPE=lincRNA;CANONICAL=YES;INTRON=1/1;HGVSc=ENST00000607769.1:n.124+349dup;HGVS_OFFSET=1;PhastCons100=0
+1:8418724:C:T	1:8418724	T	ENSG00000142599	ENST00000337907.3	Transcript	missense_variant	4506	3871	1291	G/S	Ggc/Agc	COSV61941031	IMPACT=MODERATE;STRAND=-1;VARIANT_CLASS=SNV;SYMBOL=RERE;SYMBOL_SOURCE=HGNC;HGNC_ID=9965;BIOTYPE=protein_coding;CANONICAL=YES;CCDS=CCDS95.1;ENSP=ENSP00000338629;SWISSPROT=RERE_HUMAN;TREMBL=K7EJQ1_HUMAN,K7EIQ4_HUMAN,K7EIE3_HUMAN;UNIPARC=UPI00001419CC;GENE_PHENO=1;SIFT=tolerated_low_confidence(0.23);PolyPhen=possibly_damaging(0.56);EXON=21/24;DOMAINS=PANTHER:PTHR13859,PANTHER:PTHR13859:SF12,Pfam:PF03154;HGVSc=ENST00000337907.3:c.3871G>A;HGVSp=ENSP00000338629.3:p.Gly1291Ser;SOMATIC=1;PHENO=1;BLOSUM62=0;LoFtool=0.0674;PhastCons100=1;am_class=benign;am_genome=hg19;am_pathogenicity=0.0758;am_protein_variant=G1291S;am_transcript_id=ENST00000400908.2;am_uniprot_id=Q9P2R6;pLI_gene_value=1.00
+1:8418972:G:A	1:8418972	A	ENSG00000142599	ENST00000337907.3	Transcript	missense_variant	4258	3623	1208	A/V	gCg/gTg	rs757157743,COSV61941518	IMPACT=MODERATE;STRAND=-1;VARIANT_CLASS=SNV;SYMBOL=RERE;SYMBOL_SOURCE=HGNC;HGNC_ID=9965;BIOTYPE=protein_coding;CANONICAL=YES;CCDS=CCDS95.1;ENSP=ENSP00000338629;SWISSPROT=RERE_HUMAN;TREMBL=K7EJQ1_HUMAN,K7EIQ4_HUMAN,K7EIE3_HUMAN;UNIPARC=UPI00001419CC;GENE_PHENO=1;SIFT=tolerated_low_confidence(0.27);PolyPhen=benign(0.204);EXON=21/24;DOMAINS=Low_complexity_(Seg):seg,Coiled-coils_(Ncoils):Coil,PANTHER:PTHR13859,PANTHER:PTHR13859:SF12,Pfam:PF03154;HGVSc=ENST00000337907.3:c.3623C>T;HGVSp=ENSP00000338629.3:p.Ala1208Val;gnomADe_AF=6.242e-05;gnomADe_AFR_AF=6.582e-05;gnomADe_AMR_AF=8.891e-05;gnomADe_ASJ_AF=0;gnomADe_EAS_AF=0;gnomADe_FIN_AF=0;gnomADe_NFE_AF=3.474e-05;gnomADe_SAS_AF=0.0003035;MAX_AF=0.0003035;MAX_AF_POPS=gnomADe_SAS;CLIN_SIG=likely_benign;SOMATIC=0,1;PHENO=1,1;BLOSUM62=0;LoFtool=0.0674;PhastCons100=1;am_class=benign;am_genome=hg19;am_pathogenicity=0.0916;am_protein_variant=A1208V;am_transcript_id=ENST00000400908.2;am_uniprot_id=Q9P2R6;pLI_gene_value=1.00
+1:8421289:G:A	1:8421289	A	ENSG00000142599	ENST00000337907.3	Transcript	stop_gained	2913	2278	760	Q/*	Cag/Tag	rs1641565884,CM166776	IMPACT=HIGH;STRAND=-1;VARIANT_CLASS=SNV;SYMBOL=RERE;SYMBOL_SOURCE=HGNC;HGNC_ID=9965;BIOTYPE=protein_coding;CANONICAL=YES;CCDS=CCDS95.1;ENSP=ENSP00000338629;SWISSPROT=RERE_HUMAN;TREMBL=K7EJQ1_HUMAN,K7EIQ4_HUMAN,K7EIE3_HUMAN;UNIPARC=UPI00001419CC;GENE_PHENO=1;EXON=19/24;DOMAINS=Low_complexity_(Seg):seg,PANTHER:PTHR13859,PANTHER:PTHR13859:SF12,Pfam:PF03154;HGVSc=ENST00000337907.3:c.2278C>T;HGVSp=ENSP00000338629.3:p.Gln760Ter;CLIN_SIG=likely_pathogenic;PHENO=1,1;LoFtool=0.0674;PhastCons100=0.994000017642975;pLI_gene_value=1.00
+1:865654:C:T	1:865654	T	ENSG00000187634	ENST00000342066.3	Transcript	synonymous_variant	275	192	64	T	acC/acT	rs147544000	IMPACT=LOW;STRAND=1;VARIANT_CLASS=SNV;SYMBOL=SAMD11;SYMBOL_SOURCE=HGNC;HGNC_ID=28706;BIOTYPE=protein_coding;CANONICAL=YES;CCDS=CCDS2.2;ENSP=ENSP00000342313;SWISSPROT=SAM11_HUMAN;TREMBL=Q5SV95_HUMAN,I7FV93_HUMAN,A6PWC8_HUMAN;UNIPARC=UPI0000D61E04;GENE_PHENO=1;EXON=3/14;DOMAINS=PANTHER:PTHR12247,PANTHER:PTHR12247:SF67;HGVSc=ENST00000342066.3:c.192C>T;HGVSp=ENSP00000342313.3:p.Thr64%3D;gnomADe_AF=0;gnomADe_AFR_AF=0;gnomADe_AMR_AF=0;gnomADe_ASJ_AF=0;gnomADe_EAS_AF=0;gnomADe_FIN_AF=0;gnomADe_NFE_AF=0;gnomADe_SAS_AF=0;MAX_AF=0;MAX_AF_POPS=gnomADe_AFR,gnomADe_AMR,gnomADe_ASJ,gnomADe_EAS,gnomADe_FIN,gnomADe_NFE,gnomADe_SAS;CLIN_SIG=likely_benign;PHENO=1;PhastCons100=0.987999975681305;pLI_gene_value=0.00
+1:878673:A:T	1:878673	T	ENSG00000187634	ENST00000342066.3	Transcript	synonymous_variant	1688	1605	535	P	ccA/ccT	-	IMPACT=LOW;STRAND=1;VARIANT_CLASS=SNV;SYMBOL=SAMD11;SYMBOL_SOURCE=HGNC;HGNC_ID=28706;BIOTYPE=protein_coding;CANONICAL=YES;CCDS=CCDS2.2;ENSP=ENSP00000342313;SWISSPROT=SAM11_HUMAN;TREMBL=Q5SV95_HUMAN,I7FV93_HUMAN,A6PWC8_HUMAN;UNIPARC=UPI0000D61E04;GENE_PHENO=1;EXON=12/14;DOMAINS=Gene3D:1.10.150.50,PANTHER:PTHR12247,PANTHER:PTHR12247:SF67,Superfamily:SSF47769;HGVSc=ENST00000342066.3:c.1605A>T;HGVSp=ENSP00000342313.3:p.Pro535%3D;PhastCons100=0;pLI_gene_value=0.00
+1:878759:T:G	1:878759	G	ENSG00000187634	ENST00000342066.3	Transcript	splice_donor_variant	-	-	-	-	-	rs771092037	IMPACT=HIGH;STRAND=1;VARIANT_CLASS=SNV;SYMBOL=SAMD11;SYMBOL_SOURCE=HGNC;HGNC_ID=28706;BIOTYPE=protein_coding;CANONICAL=YES;CCDS=CCDS2.2;ENSP=ENSP00000342313;SWISSPROT=SAM11_HUMAN;TREMBL=Q5SV95_HUMAN,I7FV93_HUMAN,A6PWC8_HUMAN;UNIPARC=UPI0000D61E04;GENE_PHENO=1;INTRON=12/13;HGVSc=ENST00000342066.3:c.1689+2T>G;PhastCons100=1;pLI_gene_value=0.00
+X:601587:G:A	X:601587	A	ENSG00000185960	ENST00000381578.1	Transcript	missense_variant	1209	518	173	R/H	cGc/cAc	rs746801054,CM014910,CM134683	IMPACT=MODERATE;STRAND=1;VARIANT_CLASS=SNV;SYMBOL=SHOX;SYMBOL_SOURCE=HGNC;HGNC_ID=10853;BIOTYPE=protein_coding;CANONICAL=YES;CCDS=CCDS14107.1;ENSP=ENSP00000370990;SWISSPROT=SHOX_HUMAN;UNIPARC=UPI0000053471;GENE_PHENO=1;SIFT=deleterious(0);PolyPhen=probably_damaging(1);EXON=4/6;DOMAINS=Superfamily:SSF46689,SMART:SM00389,Pfam:PF00046,Gene3D:1.10.10.60,PROSITE_patterns:PS00027,PANTHER:PTHR24329:SF311,PANTHER:PTHR24329,PROSITE_profiles:PS50071;HGVSc=ENST00000381578.1:c.518G>A;HGVSp=ENSP00000370990.1:p.Arg173His;gnomADe_AF=3.981e-06;gnomADe_AFR_AF=0;gnomADe_AMR_AF=0;gnomADe_ASJ_AF=9.921e-05;gnomADe_EAS_AF=0;gnomADe_FIN_AF=0;gnomADe_NFE_AF=0;gnomADe_SAS_AF=0;MAX_AF=9.921e-05;MAX_AF_POPS=gnomADe_ASJ;CLIN_SIG=pathogenic;PHENO=1,1,1;BLOSUM62=0;PhastCons100=1;pLI_gene_value=0.74

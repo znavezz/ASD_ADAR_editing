@@ -1,0 +1,419 @@
+---
+title: "ASD ADAR Paper — 00 Prep Data (DB pull + cache)"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: show
+    theme: flatly
+params:
+  regenerate:        false                                   # default: read cached snapshot
+  cache_dir:        ""      # default: <out>/Intermediate_tables/00_db_snapshot
+  hasura_url:       "http://localhost:8789/v1/graphql"       # check stack on alu17 (the populated one; check2 is a partial test DB)
+  env_file:         ""
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+root <- Sys.getenv("ASD_PAPER_ROOT")
+if (!nzchar(root)) stop("ASD_PAPER_ROOT is unset -- see figures/README.md")
+source(file.path(root, "figures", "_paths.R"))
+
+suppressPackageStartupMessages({
+  library(httr)
+  library(jsonlite)
+  library(dplyr)
+  library(tidyr)
+  library(stringr)
+  library(digest)
+})
+
+# --- Where the cache lives ---
+cache_dir <- asd_param_path(params$cache_dir, asd_db_snapshot())
+dir.create(cache_dir, showWarnings = FALSE, recursive = TRUE)
+
+rds_path      <- file.path(cache_dir, "df_cds.rds")
+csv_path      <- file.path(cache_dir, "df_cds.csv")
+raw_rds_path  <- file.path(cache_dir, "df_raw.rds.gz")   # nested GraphQL blob
+manifest_path <- file.path(cache_dir, "manifest.json")
+```
+
+# Read-only safety
+
+The Hasura admin secret has full RW power.  We never use it for writes —
+this notebook only ever issues read queries.  Two belts:
+
+1. `gql_read()` refuses anything that doesn't start with `query` or `{`,
+   and rejects any query body containing `mutation`, `insert_`, `update_`,
+   or `delete_` tokens.
+2. Every call site uses `gql_read()` — never raw `POST`.
+
+```{r gql_read_wrapper}
+# Load HASURA_ADMIN_SECRET from the .env file if not already in env.
+# We deliberately do NOT load HASURA_URL from .env — that file uses shell-style
+# `${GRAPHQL_PORT}` substitution which R doesn't expand.  The URL always comes
+# from the rmd's `params$hasura_url`.
+.load_hasura_secret <- function(env_file) {
+  if (Sys.getenv("HASURA_ADMIN_SECRET") != "") return(invisible(NULL))
+  if (!file.exists(env_file)) return(invisible(NULL))
+  lines <- readLines(env_file, warn = FALSE)
+  for (l in lines) {
+    l <- trimws(l)
+    if (l == "" || startsWith(l, "#")) next
+    m <- regmatches(l, regexec("^HASURA_ADMIN_SECRET=\"?([^\"]*)\"?$", l))[[1]]
+    if (length(m) == 2) {
+      Sys.setenv(HASURA_ADMIN_SECRET = m[2])
+      return(invisible(NULL))
+    }
+  }
+}
+
+.load_hasura_secret(asd_param_path(params$env_file, asd_env_file()))
+
+HASURA_URL    <- params$hasura_url                 # always from params
+HASURA_SECRET <- Sys.getenv("HASURA_ADMIN_SECRET")
+stopifnot(nchar(HASURA_SECRET) > 0)
+
+# Read-only GraphQL caller.  REFUSES anything that isn't a pure read query.
+gql_read <- function(query, variables = NULL, max_retries = 5) {
+  q <- trimws(query)
+  first <- regmatches(q, regexpr("^(query\\b|\\{)", q))
+  if (length(first) == 0)
+    stop("gql_read: query must start with 'query' or '{'.")
+  q_lower <- tolower(q)
+  for (tok in c("\nmutation ", " mutation ", "mutation{", "mutation \\{",
+                "insert_", "update_", "delete_")) {
+    if (grepl(tok, q_lower, fixed = !grepl("\\\\", tok))) {
+      stop("gql_read: forbidden token '", trimws(tok), "' detected — refusing.")
+    }
+  }
+
+  body <- list(query = query)
+  if (!is.null(variables)) body$variables <- variables
+
+  for (attempt in seq_len(max_retries)) {
+    resp <- tryCatch(
+      POST(
+        url  = HASURA_URL,
+        add_headers(`x-hasura-admin-secret` = HASURA_SECRET),
+        content_type_json(),
+        body = toJSON(body, auto_unbox = TRUE),
+        timeout(300)
+      ),
+      # cat() not message() — chunks default to message=FALSE so message()
+      # silently swallows retry errors, which makes debugging impossible.
+      error = function(e) { cat("[gql_read] attempt ", attempt, " POST error: ",
+                                conditionMessage(e), "\n", sep=""); NULL }
+    )
+    if (is.null(resp))                       { Sys.sleep(0.5 * 2^(attempt-1)); next }
+    if (status_code(resp) %in% c(502,503,504)) {
+      cat("[gql_read] attempt ", attempt, " HTTP ", status_code(resp), "\n", sep="")
+      Sys.sleep(0.5 * 2^(attempt-1)); next
+    }
+    parsed <- fromJSON(content(resp, as = "text", encoding = "UTF-8"), flatten = TRUE)
+    if (!is.null(parsed$errors))
+      stop("GraphQL error: ", toJSON(parsed$errors, auto_unbox = TRUE))
+    return(as.data.frame(parsed$data[[1]]))
+  }
+  stop("gql_read: failed after ", max_retries, " attempts")
+}
+```
+
+# Cache check
+
+If `regenerate` is FALSE and the cache exists, we just load it.  Otherwise
+we pull from Hasura and overwrite the cache.
+
+```{r cache_check}
+have_cache <- file.exists(rds_path) && file.exists(manifest_path)
+
+if (!params$regenerate && have_cache) {
+  message("Reading cached snapshot from: ", rds_path)
+  df_cds <- readRDS(rds_path)
+  manifest <- fromJSON(manifest_path)
+  message("  Pulled at:  ", manifest$pulled_at)
+  message("  DB:         ", manifest$hasura_url)
+  message("  Variants:   ", nrow(df_cds))
+  message("  Genes:      ", length(unique(df_cds$gene_symbol)))
+} else if (!params$regenerate && !have_cache) {
+  stop("No cache found at ", rds_path,
+       " — re-knit with params=list(regenerate=TRUE) to pull from DB.")
+}
+```
+
+# Pull (only when `regenerate=TRUE`)
+
+The query below is copied verbatim from `ASD_code_try_ver4_130326_Nave_dataset.rmd`
+(the study team, March 2026).  Filters: SNV ∩ protein_coding
+∩ gene has a SFARI Gene Score ∩ consequence ∈ {StopGained, Missense, Splice,
+Frameshift, Synonymous, StartLost, StopRetained}.
+
+```{r pull_raw, eval = params$regenerate}
+message("Pulling from: ", HASURA_URL)
+
+variants_query <- '
+{
+  variants(
+    where: {
+      class: { _eq: "SNV" }
+      variants_features: {
+        feature: { biotype: { name: { _eq: "protein_coding" } } }
+      }
+      gene: {
+        genes_quantitative_scores: {
+          quantitative_score: { name: { _eq: "SFARI Gene Score" } }
+        }
+      }
+      variants_consequences: {
+        consequence: { name: { _in: ["StopGained", "Missense", "Splice", "Frameshift", "Synonymous", "StartLost", "StopRetained"] } }
+      }
+    }
+  ) {
+    id
+    ref
+    alt
+    class
+    cds_position
+    protein_position
+    exon
+    intron
+    inheritance
+    rs_id
+    nmd_escaping_variant
+    position_in_codon
+
+    coordinate { chr start end strand }
+    gene { ensg symbol strand }
+    ref_codon { nt1 nt2 nt3 is_stop amino_acid { letter full_name } }
+    alt_codon { nt1 nt2 nt3 is_stop amino_acid { letter full_name } }
+
+    variants_consequences(
+      where: { consequence: { name: { _in: ["StopGained", "Missense", "Splice", "Frameshift", "Synonymous", "StartLost", "StopRetained"] } } }
+    ) {
+      consequence { name }
+    }
+
+    gene {
+      genes_quantitative_scores { quantitative_score { name value } }
+    }
+    gene {
+      genes_qualitative_scores  { qualitative_score  { name value } }
+    }
+
+    variants_subjects { subject_id }
+    variants_papers   { paper { paper_key } }
+
+    variants_qualitative_scores  { qualitative_score  { name value } }
+    variants_quantitative_scores { quantitative_score { name value } }
+  }
+}'
+
+t0 <- Sys.time()
+df_raw <- gql_read(variants_query)
+message("Raw pull: ", nrow(df_raw), " rows in ",
+        format(round(Sys.time() - t0, 1)))
+```
+
+# Flatten into df_cds
+
+```{r flatten, eval = params$regenerate}
+safe_extract <- function(lst, fn) {
+  sapply(lst, function(x) tryCatch(fn(x), error = function(e) NA))
+}
+
+xq <- function(score_name, kind = c("var_qual","var_quant","gene_qual","gene_quant")) {
+  kind <- match.arg(kind)
+  col <- switch(kind,
+    var_qual   = "variants_qualitative_scores",
+    var_quant  = "variants_quantitative_scores",
+    gene_qual  = "gene.genes_qualitative_scores",
+    gene_quant = "gene.genes_quantitative_scores")
+  is_qual <- endsWith(kind, "qual")
+  field   <- if (is_qual) "qualitative_score.name" else "quantitative_score.name"
+  valfld  <- if (is_qual) "qualitative_score.value" else "quantitative_score.value"
+
+  safe_extract(df_raw[[col]], function(x) {
+    if (is.null(x) || nrow(x) == 0) return(if (is_qual) NA_character_ else NA_real_)
+    m <- x[x[[field]] == score_name, , drop = FALSE]
+    if (nrow(m) == 0) return(if (is_qual) NA_character_ else NA_real_)
+    if (is_qual) paste(m[[valfld]], collapse = "&") else as.numeric(m[[valfld]][1])
+  })
+}
+
+df_cds <- data.frame(
+  id                   = df_raw$id,
+  REF.VEP              = df_raw$ref,
+  ALT.VEP              = df_raw$alt,
+  class                = df_raw$class,
+  cds_position         = df_raw$cds_position,
+  protein_position     = df_raw$protein_position,
+  exon                 = df_raw$exon,
+  intron               = df_raw$intron,
+  inheritance          = df_raw$inheritance,
+  rs_id                = df_raw$rs_id,
+  nmd_escaping_variant = df_raw$nmd_escaping_variant,
+  position_in_codon    = df_raw$position_in_codon,
+  stringsAsFactors = FALSE
+)
+
+df_cds$chr    <- df_raw[["coordinate.chr"]]
+df_cds$start  <- df_raw[["coordinate.start"]]
+df_cds$end    <- df_raw[["coordinate.end"]]
+df_cds$STRAND <- df_raw[["coordinate.strand"]]
+
+df_cds$gene_ensg   <- df_raw[["gene.ensg"]]
+df_cds$gene_symbol <- df_raw[["gene.symbol"]]
+df_cds$gene_strand <- df_raw[["gene.strand"]]
+
+df_cds$ref_codon_nt1  <- df_raw[["ref_codon.nt1"]]
+df_cds$ref_codon_nt2  <- df_raw[["ref_codon.nt2"]]
+df_cds$ref_codon_nt3  <- df_raw[["ref_codon.nt3"]]
+df_cds$ref_codon_stop <- df_raw[["ref_codon.is_stop"]]
+df_cds$ref_aa         <- df_raw[["ref_codon.amino_acid.letter"]]
+df_cds$ref_aa_name    <- df_raw[["ref_codon.amino_acid.full_name"]]
+
+df_cds$alt_codon_nt1  <- df_raw[["alt_codon.nt1"]]
+df_cds$alt_codon_nt2  <- df_raw[["alt_codon.nt2"]]
+df_cds$alt_codon_nt3  <- df_raw[["alt_codon.nt3"]]
+df_cds$alt_codon_stop <- df_raw[["alt_codon.is_stop"]]
+df_cds$alt_aa         <- df_raw[["alt_codon.amino_acid.letter"]]
+df_cds$alt_aa_name    <- df_raw[["alt_codon.amino_acid.full_name"]]
+
+df_cds$Consequence <- safe_extract(df_raw[["variants_consequences"]], function(x) {
+  if (is.null(x) || nrow(x) == 0) return(NA_character_)
+  # Sorted, not in arrival order: the database returns a variant's consequences in
+  # no guaranteed order, so an unsorted join makes this column -- and therefore the
+  # whole snapshot -- differ between identical pulls. 243 of the 9,962 rows carry
+  # more than one consequence and were flipping between runs. Every consumer tests
+  # membership (str_detect / grepl), never the string itself, so sorting changes no
+  # result; it only makes the file reproducible.
+  paste(sort(x$consequence.name), collapse = ",")
+})
+
+df_cds$New_Consequence <- dplyr::case_when(
+  grepl("StopGained",   df_cds$Consequence) ~ "Nonsense",
+  grepl("Splice",       df_cds$Consequence) ~ "Splice",
+  grepl("Missense",     df_cds$Consequence) ~ "Missense",
+  grepl("Frameshift",   df_cds$Consequence) ~ "Frameshift",
+  grepl("Synonymous",   df_cds$Consequence) ~ "Synonymous",
+  grepl("StartLost",    df_cds$Consequence) ~ "Start_lost",
+  grepl("StopRetained", df_cds$Consequence) ~ "Stop_retained",
+  TRUE                                      ~ "Other"
+)
+
+df_cds$patient_count <- safe_extract(df_raw[["variants_subjects"]], function(x) {
+  if (is.null(x) || nrow(x) == 0) return(0L)
+  length(unique(x$subject_id))
+})
+
+df_cds$paper_keys <- safe_extract(df_raw[["variants_papers"]], function(x) {
+  if (is.null(x) || nrow(x) == 0) return(NA_character_)
+  paste(x$paper.paper_key, collapse = ";")
+})
+
+df_cds$CLIN_SIG      <- xq("ClinVar",       "var_qual")
+df_cds$SIFT_pred     <- xq("SIFT",          "var_qual")
+df_cds$am_class      <- xq("AlphaMissense", "var_qual")
+df_cds$condel_pred   <- xq("Condel",        "var_qual")
+df_cds$polyphen_pred <- xq("PolyPhen",      "var_qual")
+
+df_cds$SIFT_score       <- xq("SIFT",          "var_quant")
+df_cds$am_pathogenicity <- xq("AlphaMissense", "var_quant")
+df_cds$polyphen_score   <- xq("PolyPhen",      "var_quant")
+df_cds$REVEL            <- xq("REVEL",         "var_quant")
+df_cds$BLOSUM62         <- xq("BLOSUM62",      "var_quant")
+df_cds$condel_score     <- xq("Condel",        "var_quant")
+df_cds$pLI              <- xq("pLI",           "var_quant")
+df_cds$PhastCons100     <- xq("PhastCons100",  "var_quant")
+df_cds$LoFtool          <- xq("LoFtool",       "var_quant")
+df_cds$GENE_PHENO       <- xq("GENE_PHENO",    "var_quant")
+df_cds$CADD_phred       <- xq("CADD_phred",    "var_quant")
+
+df_cds$sfari_syndromic  <- xq("SFARI Syndromic", "gene_qual")
+df_cds$sfari_gene_score <- xq("SFARI Gene Score","gene_quant")
+df_cds$sfari_reports    <- xq("SFARI #Reports",  "gene_quant")
+```
+
+# Strand correction
+
+VEP reports REF/ALT on the chromosome (+) strand.  A G>A on a minus-strand
+gene is reported as C>T.  This block creates strand-corrected `REF` / `ALT`
+columns, keeping the originals as `REF.VEP` / `ALT.VEP`.
+
+```{r strand_correct, eval = params$regenerate}
+complement_base <- function(b) chartr("ACGT", "TGCA", b)
+
+df_cds <- df_cds %>%
+  mutate(
+    REF = ifelse(gene_strand == "-", complement_base(REF.VEP), REF.VEP),
+    ALT = ifelse(gene_strand == "-", complement_base(ALT.VEP), ALT.VEP)
+  )
+
+# Sanity print
+ga_before <- sum(df_cds$REF.VEP == "G" & df_cds$ALT.VEP == "A", na.rm = TRUE)
+ga_after  <- sum(df_cds$REF     == "G" & df_cds$ALT     == "A", na.rm = TRUE)
+ct_before <- sum(df_cds$REF.VEP == "C" & df_cds$ALT.VEP == "T", na.rm = TRUE)
+ct_after  <- sum(df_cds$REF     == "C" & df_cds$ALT     == "T", na.rm = TRUE)
+message("G>A before/after strand fix: ", ga_before, " → ", ga_after)
+message("C>T before/after strand fix: ", ct_before, " → ", ct_after)
+```
+
+# Save snapshot + manifest
+
+```{r save_cache, eval = params$regenerate}
+saveRDS(df_cds, rds_path)                              # default = gzip
+write.csv(df_cds, csv_path, row.names = FALSE)
+saveRDS(df_raw, raw_rds_path, compress = "gzip")       # full nested GraphQL blob
+
+# Content first, then the run context. The split is deliberate: everything above
+# `pulled_at` is a fact about the snapshot and is identical between two honest
+# pulls; everything below records the circumstances of one run and is not.
+# `scripts/verify_counts.py` checksums the content half only, so a re-run does not
+# look like a regression while the facts still cannot drift unnoticed.
+#
+# Paths are recorded relative to the output root -- they used to be absolute,
+# which wrote one machine's directory layout into a file a reader may well see.
+manifest <- list(
+  query_sha1     = digest::digest(variants_query, algo = "sha1"),
+  n_variants     = nrow(df_cds),
+  n_genes        = length(unique(df_cds$gene_symbol)),
+  n_columns      = ncol(df_cds),
+  consequence_counts = as.list(table(df_cds$New_Consequence, useNA = "ifany")),
+  raw_rds_bytes  = file.info(raw_rds_path)$size,
+  rds_file       = basename(rds_path),
+  csv_file       = basename(csv_path),
+  raw_rds_file   = basename(raw_rds_path),
+  pulled_at      = format(Sys.time(), tz = "UTC", usetz = TRUE),
+  hasura_url     = HASURA_URL
+)
+writeLines(toJSON(manifest, pretty = TRUE, auto_unbox = TRUE), manifest_path)
+
+message("\nCache written:")
+message("  ", rds_path)
+message("  ", csv_path)
+message("  ", raw_rds_path,
+        " (", format(file.info(raw_rds_path)$size, big.mark = ","), " bytes)")
+message("  ", manifest_path)
+```
+
+# Sanity report
+
+```{r sanity}
+cat("Variants:   ", nrow(df_cds), "\n")
+cat("Genes:      ", length(unique(df_cds$gene_symbol)), "\n")
+cat("\nConsequence breakdown:\n")
+print(table(df_cds$New_Consequence, useNA = "ifany"))
+cat("\nMismatch breakdown (top 10, strand-corrected):\n")
+print(sort(table(paste0(df_cds$REF, ">", df_cds$ALT)), decreasing = TRUE)[1:10])
+cat("\nSFARI gene score:\n")
+print(table(df_cds$sfari_gene_score, useNA = "ifany"))
+cat("\nClinVar coverage: ", sum(!is.na(df_cds$CLIN_SIG)), " / ", nrow(df_cds), "\n")
+```
+
+# Session info
+
+```{r}
+sessionInfo()
+```

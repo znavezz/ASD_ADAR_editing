@@ -1,0 +1,265 @@
+---
+title: "Figure 1A — Variant Filtering Funnel"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: show
+    theme: flatly
+params:
+  regenerate:        false                                                      # FALSE: reload cached counts
+  panel_id:          "Figure_1A_funnel"
+  hasura_url:       "http://localhost:8789/v1/graphql"
+  env_file:         ""
+  intermediate_dir: ""
+  out_main:         ""
+  out_supp_tables:  ""
+  width:             6
+  height:            8
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+root <- Sys.getenv("ASD_PAPER_ROOT")
+if (!nzchar(root)) stop("ASD_PAPER_ROOT is unset -- see figures/README.md")
+source(file.path(root, "figures", "_paths.R"))
+
+suppressPackageStartupMessages({
+  library(dplyr)
+  library(ggplot2)
+  library(scales)
+  library(httr)
+  library(jsonlite)
+})
+
+source(asd_code("ver1", "_helpers.R"))  # theme_publication, fig_colors, save_panel
+
+panel_id        <- params$panel_id
+intermediate_dir<- asd_param_path(params$intermediate_dir, asd_intermediate_dir())
+out_main        <- asd_param_path(params$out_main,         asd_panels_dir())
+out_supp_tables <- asd_param_path(params$out_supp_tables,  asd_supp_tables_dir("panels"))
+dir.create(intermediate_dir, showWarnings = FALSE, recursive = TRUE)
+dir.create(out_main,         showWarnings = FALSE, recursive = TRUE)
+dir.create(out_supp_tables,  showWarnings = FALSE, recursive = TRUE)
+
+counts_rds       <- file.path(intermediate_dir, paste0(panel_id, "_counts.rds"))
+ggplot_rds       <- file.path(intermediate_dir, paste0(panel_id, "_ggplot.rds"))
+source_data_csv  <- file.path(intermediate_dir, paste0("Source_data_", panel_id, ".csv"))
+```
+
+# Plan
+
+Sequential filter funnel — 5 levels of narrowing from VariCarta total to
+the CDS+Splice subset that drives every other Figure 1 panel.  Linear
+top-to-bottom layout ("simple list", per the collaborators' spec); each box shows
+the category, count, and percentage retained from the previous step.
+Drop annotations on the right of each arrow show how many variants were
+filtered out at each stage.
+
+Five filter steps (matches the exploratory notebook's main path, dropping
+his branch siblings):
+
+| step | filter |
+|---:|---|
+| 1 | All VariCarta variants |
+| 2 | SNV only |
+| 3 | + protein-coding biotype |
+| 4 | + gene has SFARI Gene Score |
+| 5 | + consequence ∈ {StopGained, Missense, Splice, Frameshift, Synonymous, StartLost, StopRetained} |
+
+Step 5's row count (9,632) is exactly the variant count cached by
+`00_prep_data.rmd`.
+
+# Read-only GraphQL wrapper
+
+```{r gql_wrapper}
+.load_hasura_secret <- function(env_file) {
+  if (Sys.getenv("HASURA_ADMIN_SECRET") != "") return(invisible(NULL))
+  if (!file.exists(env_file)) return(invisible(NULL))
+  for (l in readLines(env_file, warn = FALSE)) {
+    l <- trimws(l)
+    m <- regmatches(l, regexec("^HASURA_ADMIN_SECRET=\"?([^\"]*)\"?$", l))[[1]]
+    if (length(m) == 2) { Sys.setenv(HASURA_ADMIN_SECRET = m[2]); break }
+  }
+}
+.load_hasura_secret(asd_param_path(params$env_file, asd_env_file()))
+
+HASURA_URL    <- params$hasura_url
+HASURA_SECRET <- Sys.getenv("HASURA_ADMIN_SECRET")
+stopifnot(nchar(HASURA_SECRET) > 0)
+
+gql_read <- function(query, max_retries = 5) {
+  q <- trimws(query)
+  if (!grepl("^(query\\b|\\{)", q))
+    stop("gql_read: query must start with 'query' or '{'.")
+  for (tok in c("mutation", "insert_", "update_", "delete_"))
+    if (grepl(tok, tolower(q), fixed = TRUE))
+      stop("gql_read: forbidden token '", tok, "' detected.")
+
+  for (attempt in seq_len(max_retries)) {
+    resp <- tryCatch(
+      POST(HASURA_URL,
+           add_headers(`x-hasura-admin-secret` = HASURA_SECRET),
+           content_type_json(),
+           body = toJSON(list(query = query), auto_unbox = TRUE),
+           timeout(120)),
+      error = function(e) { cat("[gql_read] err: ", conditionMessage(e), "\n", sep=""); NULL })
+    if (is.null(resp)) { Sys.sleep(0.5 * 2^(attempt-1)); next }
+    parsed <- fromJSON(content(resp, as = "text", encoding = "UTF-8"), flatten = TRUE)
+    if (!is.null(parsed$errors))
+      stop("GraphQL error: ", toJSON(parsed$errors, auto_unbox = TRUE))
+    return(parsed$data)
+  }
+  stop("gql_read: failed after ", max_retries, " attempts")
+}
+```
+
+# Pull (or reload) the 5 counts
+
+```{r pull_counts}
+have_cache <- file.exists(counts_rds)
+
+if (!params$regenerate && have_cache) {
+  steps <- readRDS(counts_rds)
+  cat("reusing cached counts:", counts_rds, "\n")
+} else {
+  query <- '
+  {
+    s1_total: variants_aggregate { aggregate { count } }
+
+    s2_snv: variants_aggregate(where: { class: { _eq: "SNV" } }) {
+      aggregate { count }
+    }
+
+    s3_pc: variants_aggregate(where: {
+      class: { _eq: "SNV" }
+      variants_features: { feature: { biotype: { name: { _eq: "protein_coding" } } } }
+    }) { aggregate { count } }
+
+    s4_sfari: variants_aggregate(where: {
+      class: { _eq: "SNV" }
+      variants_features: { feature: { biotype: { name: { _eq: "protein_coding" } } } }
+      gene: { genes_quantitative_scores: { quantitative_score: { name: { _eq: "SFARI Gene Score" } } } }
+    }) { aggregate { count } }
+
+    s5_cds: variants_aggregate(where: {
+      class: { _eq: "SNV" }
+      variants_features: { feature: { biotype: { name: { _eq: "protein_coding" } } } }
+      gene: { genes_quantitative_scores: { quantitative_score: { name: { _eq: "SFARI Gene Score" } } } }
+      variants_consequences: { consequence: { name: { _in: ["StopGained", "Missense", "Splice", "Frameshift", "Synonymous", "StartLost", "StopRetained"] } } }
+    }) { aggregate { count } }
+  }'
+
+  d <- gql_read(query)
+
+  steps <- data.frame(
+    idx   = 1:5,
+    title = c("Total variants (VariCarta)",
+              "Single nucleotide variants\n(SNVs)",      # two lines
+              "Protein-coding regions",
+              "In SFARI genes",
+              "CDS + splice sites"),
+    count = c(d$s1_total$aggregate$count,
+              d$s2_snv$aggregate$count,
+              d$s3_pc$aggregate$count,
+              d$s4_sfari$aggregate$count,
+              d$s5_cds$aggregate$count),
+    stringsAsFactors = FALSE
+  )
+  steps$pct_of_total <- 100 * steps$count / steps$count[1]
+  steps$pct_of_prev  <- c(NA, 100 * steps$count[-1] / steps$count[-nrow(steps)])
+  steps$dropped      <- c(NA, steps$count[-nrow(steps)] - steps$count[-1])
+  steps$y            <- -steps$idx
+
+  saveRDS(steps, counts_rds)
+  write.csv(steps, source_data_csv, row.names = FALSE)
+}
+
+print(steps)
+```
+
+# Build the funnel
+
+```{r build_panel, fig.width=params$width, fig.height=params$height}
+# Box-less funnel: text only with arrows between steps.
+# `half_w` is retained purely to define the x-axis extent.
+# ggplot geom_text `size` is in mm; size=5 ≈ 14 pt visually.
+half_w  <- 2.0
+y_scale <- 1.00   # vertical spacing between text blocks
+
+boxes <- steps %>%
+  mutate(
+    y           = y * y_scale,
+    label_main  = title,
+    label_count = format(count, big.mark = ",")
+  )
+
+# Arrows between consecutive text blocks
+arrows <- data.frame(
+  x    = 0,
+  xend = 0,
+  y    = head(boxes$y, -1) - 0.22,   # below count text of upper step
+  yend = tail(boxes$y, -1) + 0.22    # above title text of lower step
+)
+
+p <- ggplot() +
+  # Title text (top line)
+  geom_text(
+    data = boxes,
+    aes(x = 0, y = y + 0.12, label = label_main),
+    family = "Nimbus Sans", fontface = "bold", size = 5,
+    lineheight = 0.85
+  ) +
+  # Count text (bottom line)
+  geom_text(
+    data = boxes,
+    aes(x = 0, y = y - 0.12, label = label_count),
+    family = "Nimbus Sans", fontface = "plain", size = 5,
+    colour = "grey25"
+  ) +
+  # Arrows
+  geom_segment(
+    data = arrows,
+    aes(x = x, xend = xend, y = y, yend = yend),
+    arrow = arrow(length = unit(0.20, "cm"), type = "closed"),
+    linewidth = 0.6
+  ) +
+  scale_x_continuous(limits = c(-half_w - 0.4, half_w + 2.4),
+                     expand = expansion(0)) +
+  scale_y_continuous(limits = c(min(boxes$y) - 0.4, max(boxes$y) + 0.4),
+                     expand = expansion(0)) +
+  coord_cartesian(clip = "off") +
+  labs(tag = "A") +
+  theme_void(base_family = "Nimbus Sans") +
+  theme(
+    plot.tag           = element_text(face = "bold", size = 16, family = "Nimbus Sans"),
+    plot.tag.position  = c(0, 1),
+    plot.background    = element_blank(),
+    panel.background   = element_blank(),
+    plot.margin        = margin(20, 10, 10, 10)
+  )
+
+print(p)
+```
+
+# Save (PDF + ggplot RDS)
+
+```{r save}
+save_panel(p, panel_id,
+           pdf_dir = out_main,
+           rds_dir = intermediate_dir,
+           width  = params$width,
+           height = params$height)
+
+write.csv(steps,
+          file.path(out_supp_tables, paste0("Supp_Table_F1A_", panel_id, ".csv")),
+          row.names = FALSE)
+```
+
+# Session info
+
+```{r}
+sessionInfo()
+```
