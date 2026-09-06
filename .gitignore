@@ -422,6 +422,10 @@ Resources/*
 # Checksums are tiny text and are the whole point of pinning an input — they must be tracked
 # even though the multi-gigabyte files they describe never can be.
 !Resources/checksums/
+# manifest.tsv is the record of what every input is and where it came from; it is
+# the smallest and most important file in this directory, so it must be listed here
+# explicitly or Resources/* swallows it.
+!Resources/manifest.tsv
 .DS_Store
 db/*
 # The schema is the one tracked file in db/. This negation must name it exactly:
