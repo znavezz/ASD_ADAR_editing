@@ -1,5 +1,16 @@
 ## PreProcess
 import sys
+from pathlib import Path as _Path
+
+# The stages live in pipeline/ and import each other by bare name (`helpers`,
+# `neighbor_drill`). Put the repository root and pipeline/ on the path before those
+# imports run, so this script works when invoked directly as documented rather than
+# only under pytest, whose conftest.py does the same thing.
+_ROOT = _Path(__file__).resolve().parent.parent
+for _entry in (_ROOT, _ROOT / "pipeline"):
+    if str(_entry) not in sys.path:
+        sys.path.insert(0, str(_entry))
+
 import argparse
 import logging
 import pandas as pd
@@ -44,6 +55,14 @@ parser.add_argument(
     default="preprocess",
     help="Phase to start from (default: preprocess). Runs this phase and all subsequent ones.",
 )
+parser.add_argument(
+    "--env-file",
+    dest="env_file",
+    default=os.environ.get("ASD_ENV_FILE", ".env"),
+    help="Environment file naming the database to write to (default: .env, or $ASD_ENV_FILE). "
+         "This selects the target database, so state it deliberately when a run must not "
+         "touch the primary one.",
+)
 args = parser.parse_args()
 START_INDEX = PHASE_ORDER.index(args.start_from)
 
@@ -53,10 +72,13 @@ def resolve(p):
     p = Path(p).expanduser()
     return p if p.is_absolute() else (PROJECT_ROOT / p).resolve()
 
-# ── Load .env ──
-env_path = PROJECT_ROOT / ".env"
-if not os.path.exists(env_path):
-    raise RuntimeError("Could not find .env file")
+# ── Load the environment ──
+# The env file names the database this run writes to, so it is an explicit argument
+# rather than a fixed path: a verification run must be able to target a scratch stack
+# without editing this file.
+env_path = resolve(args.env_file)
+if not env_path.exists():
+    raise RuntimeError(f"env file not found: {env_path}")
 load_dotenv(env_path, override=True)
 
 GENOME_REFERENCE_HG19     = resolve(os.environ["GENOME_REFERENCE_HG19"])

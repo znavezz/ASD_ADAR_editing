@@ -60,6 +60,17 @@ Rscript figures/run_all_figures.R
 Rebuilds all five figures from the database. Output lands in `Output/Figures/`, one file per
 manuscript figure. See `figures/README.md`.
 
+## Choosing which database a run writes to
+
+`scripts/run_pipeline.py` and `reset_db.sh` both write, and both take `--env-file`
+(default `.env`, or `$ASD_ENV_FILE`). The env file names the target database, so a
+verification run can be pointed at a scratch stack without editing any source:
+
+```bash
+./reset_db.sh --before 1 --env-file .env.test
+python scripts/run_pipeline.py --env-file .env.test
+```
+
 ## Environment
 
 `environment.yml` declares the conda environment; `environment.lock.txt` records the exact

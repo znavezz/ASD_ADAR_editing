@@ -2,21 +2,47 @@
 # reset_db.sh — Revert the workspace to the state it was in before a given pipeline phase.
 #
 # Usage:
-#   ./reset_db.sh [--before <1|2|3>]
+#   ./reset_db.sh [--before <1|2|3>] [--env-file <path>]
 #
 #   --before 1  Full reset: remove all pipeline output (default when no args given)
 #   --before 2  Remove DB data, staging CSVs, and all guide output (keep phase 1 outputs)
 #   --before 3  Remove only guide/bystander rows from the DB and related files
 #
+#   --env-file  Environment file naming the database to reset (default: .env, or
+#               $ASD_ENV_FILE). This script DESTROYS data, so the target is an
+#               explicit argument rather than a fixed path.
+#
 # Each option removes everything produced by the specified phase and all later phases.
 set -euo pipefail
 
 cd "$(dirname "$0")"
-source .env
+
+ENV_FILE="${ASD_ENV_FILE:-.env}"
+_args=(); while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --env-file) ENV_FILE="$2"; shift 2 ;;
+    *) _args+=("$1"); shift ;;
+  esac
+done
+set -- ${_args+"${_args[@]}"}
+
+[[ -f "$ENV_FILE" ]] || { echo "env file not found: $ENV_FILE" >&2; exit 1; }
+
+# Export, don't just source. `docker compose` does not read the shell's unexported
+# variables: it reads ./.env itself. Sourcing .env.test without exporting therefore
+# truncated the test database (docker exec uses the shell variable) while resolving
+# COMPOSE_PROJECT_NAME to the production project, so `docker compose down` would have
+# stopped the wrong stack.
+set -a
+source "$ENV_FILE"
+set +a
+
+echo "Target: ${POSTGRES_DOCKER_CONTAINER} / ${POSTGRES_DB} (${ENV_FILE})"
+echo "Compose project: $(docker compose config 2>/dev/null | awk '/^name:/{print $2; exit}')"
 
 # ── Argument parsing ──────────────────────────────────────────────────────────
 usage() {
-  echo "Usage: $0 [--before <1|2|3>]"
+  echo "Usage: $0 [--before <1|2|3>] [--env-file <path>]"
   echo ""
   echo "  --before 1  Full reset — remove all pipeline output (default)"
   echo "  --before 2  Remove DB, staging CSVs, and guide output (keep VCF/VEP)"
