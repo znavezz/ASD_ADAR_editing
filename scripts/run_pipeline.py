@@ -58,10 +58,10 @@ parser.add_argument(
 parser.add_argument(
     "--env-file",
     dest="env_file",
-    default=os.environ.get("ASD_ENV_FILE", ".env"),
-    help="Environment file naming the database to write to (default: .env, or $ASD_ENV_FILE). "
-         "This selects the target database, so state it deliberately when a run must not "
-         "touch the primary one.",
+    default=os.environ.get("ASD_ENV_FILE", ".env.test"),
+    help="Environment file naming the database to write to (default: .env.test, or "
+         "$ASD_ENV_FILE). This stage writes, so the scratch stack is the default and the "
+         "published database must be asked for by name.",
 )
 args = parser.parse_args()
 START_INDEX = PHASE_ORDER.index(args.start_from)
@@ -80,6 +80,22 @@ env_path = resolve(args.env_file)
 if not env_path.exists():
     raise RuntimeError(f"env file not found: {env_path}")
 load_dotenv(env_path, override=True)
+
+# This pipeline writes. The published database is the one that produced the manuscript,
+# so pointing a run at it has to be deliberate. ASD_PUBLISHED_CONTAINER names the instance
+# to protect; set it empty to disable the guard.
+_published = os.environ.get("ASD_PUBLISHED_CONTAINER", "asd_adar_postgres")
+if (
+    _published
+    and os.environ.get("POSTGRES_DOCKER_CONTAINER") == _published
+    and os.environ.get("ASD_ALLOW_PUBLISHED_WRITE") != "yes"
+):
+    raise SystemExit(
+        f"Refusing: {_published} is the published database, and this pipeline writes.\n"
+        f"  Target a scratch stack:  python scripts/run_pipeline.py --env-file .env.test\n"
+        f"  To proceed anyway:       ASD_ALLOW_PUBLISHED_WRITE=yes python scripts/run_pipeline.py "
+        f"--env-file {args.env_file}"
+    )
 
 GENOME_REFERENCE_HG19     = resolve(os.environ["GENOME_REFERENCE_HG19"])
 VARICARTA_PATH = resolve(os.environ["VARICARTA_PATH"])

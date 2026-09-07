@@ -8,16 +8,22 @@
 #   --before 2  Remove DB data, staging CSVs, and all guide output (keep phase 1 outputs)
 #   --before 3  Remove only guide/bystander rows from the DB and related files
 #
-#   --env-file  Environment file naming the database to reset (default: .env, or
-#               $ASD_ENV_FILE). This script DESTROYS data, so the target is an
-#               explicit argument rather than a fixed path.
+#   --env-file  Environment file naming the database to reset. Defaults to
+#               .env.test (or $ASD_ENV_FILE): this script DESTROYS data, so the
+#               scratch stack is the default and the real one must be asked for.
+#               Resetting the published database additionally requires
+#               ASD_ALLOW_PUBLISHED_RESET=yes.
 #
 # Each option removes everything produced by the specified phase and all later phases.
 set -euo pipefail
 
 cd "$(dirname "$0")"
 
-ENV_FILE="${ASD_ENV_FILE:-.env}"
+# Default to the scratch stack. This script deletes data, and the alternative default
+# was the database that produced the manuscript: `./reset_db.sh` with no arguments
+# destroyed it. Choosing the destructive target has to be a deliberate act, so the
+# safe stack is what you get for free.
+ENV_FILE="${ASD_ENV_FILE:-.env.test}"
 _args=(); while [[ $# -gt 0 ]]; do
   case "$1" in
     --env-file) ENV_FILE="$2"; shift 2 ;;
@@ -53,7 +59,7 @@ if [[ -n "${ASD_PUBLISHED_CONTAINER}" \
   echo "  A reset deletes ${POSTGRES_DIR}, which is the data behind the paper." >&2
   echo "" >&2
   echo "  To reset a scratch stack instead:  $0 --before 1 --env-file .env.test" >&2
-  echo "  To proceed anyway:                 ASD_ALLOW_PUBLISHED_RESET=yes $0 $*" >&2
+  echo "  To proceed anyway:                 ASD_ALLOW_PUBLISHED_RESET=yes $0 $* --env-file ${ENV_FILE}" >&2
   exit 1
 fi
 

@@ -66,10 +66,19 @@ manuscript figure. See `figures/README.md`.
 (default `.env`, or `$ASD_ENV_FILE`). The env file names the target database, so a
 verification run can be pointed at a scratch stack without editing any source:
 
+Both default to `.env.test`, the scratch stack, because both destroy or overwrite
+data. Writing to the database named in `.env` is refused unless asked for by name:
+
 ```bash
-./reset_db.sh --before 1 --env-file .env.test
-python scripts/run_pipeline.py --env-file .env.test
+./reset_db.sh --before 1            # resets the scratch stack
+python scripts/run_pipeline.py      # rebuilds it
+
+ASD_ALLOW_PUBLISHED_RESET=yes ./reset_db.sh --before 1 --env-file .env   # the real one
 ```
+
+`--before 1` is a full teardown: it truncates the guide tables, deletes the PostgreSQL
+data directory and the staging CSVs, and removes the VEP annotation. `--before 2` keeps
+the VEP output; `--before 3` removes only guides and bystanders.
 
 ## Environment
 

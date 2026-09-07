@@ -68,10 +68,28 @@ def test_shell_entry_points_are_executable():
         assert mode & stat.S_IXUSR, f"{rel} is not executable"
 
 
-def test_reset_refuses_the_published_database_by_default():
-    """`./reset_db.sh` with no arguments defaults to a full reset, and .env names the
-    database that produced the manuscript. Deleting it must take an explicit opt-in."""
-    r = subprocess.run(["bash", str(ROOT / "reset_db.sh"), "--before", "1"],
-                       capture_output=True, text=True, cwd=ROOT, timeout=120)
+def test_reset_refuses_the_published_database():
+    """Naming the published database must not be enough to delete it.
+
+    --before 1 is a full teardown that removes the PostgreSQL data directory. The
+    default target is the scratch stack, so this asks for the real one by name and
+    asserts that asking is still refused without the opt-in.
+    """
+    r = subprocess.run(
+        ["bash", str(ROOT / "reset_db.sh"), "--before", "1", "--env-file", ".env"],
+        capture_output=True, text=True, cwd=ROOT, timeout=120)
     assert r.returncode != 0, "a full reset of the published database was not refused"
     assert "published database" in r.stderr
+
+
+def test_destructive_entry_points_default_to_the_scratch_stack():
+    """Both the reset and the pipeline write. Their default target must be the test
+    stack, not the database that produced the manuscript."""
+    assert 'ASD_ENV_FILE:-.env.test' in (ROOT / "reset_db.sh").read_text()
+    assert '"ASD_ENV_FILE", ".env.test"' in (ROOT / "scripts" / "run_pipeline.py").read_text()
+
+
+def test_pipeline_refuses_to_write_to_the_published_database():
+    r = _run("--env-file", ".env")
+    assert r.returncode != 0
+    assert "published database" in (r.stderr + r.stdout)
