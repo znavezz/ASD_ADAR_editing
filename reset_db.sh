@@ -40,6 +40,23 @@ set +a
 echo "Target: ${POSTGRES_DOCKER_CONTAINER} / ${POSTGRES_DB} (${ENV_FILE})"
 echo "Compose project: $(docker compose config 2>/dev/null | awk '/^name:/{print $2; exit}')"
 
+# The published database is the one that produced the manuscript. A full reset deletes
+# its data directory outright, and --before 1 is the default when no arguments are given,
+# so refuse unless the caller says so in as many words. ASD_PUBLISHED_CONTAINER names the
+# instance to protect; set it empty to disable the guard entirely.
+: "${ASD_PUBLISHED_CONTAINER:=asd_adar_postgres}"
+if [[ -n "${ASD_PUBLISHED_CONTAINER}" \
+   && "${POSTGRES_DOCKER_CONTAINER}" == "${ASD_PUBLISHED_CONTAINER}" \
+   && "${ASD_ALLOW_PUBLISHED_RESET:-}" != "yes" ]]; then
+  echo "" >&2
+  echo "Refusing: ${POSTGRES_DOCKER_CONTAINER} is the published database." >&2
+  echo "  A reset deletes ${POSTGRES_DIR}, which is the data behind the paper." >&2
+  echo "" >&2
+  echo "  To reset a scratch stack instead:  $0 --before 1 --env-file .env.test" >&2
+  echo "  To proceed anyway:                 ASD_ALLOW_PUBLISHED_RESET=yes $0 $*" >&2
+  exit 1
+fi
+
 # ── Argument parsing ──────────────────────────────────────────────────────────
 usage() {
   echo "Usage: $0 [--before <1|2|3>] [--env-file <path>]"

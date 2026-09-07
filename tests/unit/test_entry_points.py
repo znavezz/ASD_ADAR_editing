@@ -53,3 +53,25 @@ def test_reset_db_exports_its_environment():
     source_at = text.index('source "$ENV_FILE"')
     assert "set -a" in text[:source_at], "env file is sourced without being exported"
     assert "set +a" in text[source_at:], "allexport is never turned back off"
+
+
+def test_shell_entry_points_are_executable():
+    """A script the README invokes as ./name must carry the executable bit in git.
+
+    reset_db.sh was committed 100644, so the documented `./reset_db.sh` failed with
+    Permission denied in every fresh clone. The bit lives in the index, not just on
+    disk, so chmod alone does not fix it for anyone else.
+    """
+    import stat
+    for rel in ("reset_db.sh", "figures/Lit_Search/06_mode_b_audit_runner_ver2.sh"):
+        mode = (ROOT / rel).stat().st_mode
+        assert mode & stat.S_IXUSR, f"{rel} is not executable"
+
+
+def test_reset_refuses_the_published_database_by_default():
+    """`./reset_db.sh` with no arguments defaults to a full reset, and .env names the
+    database that produced the manuscript. Deleting it must take an explicit opt-in."""
+    r = subprocess.run(["bash", str(ROOT / "reset_db.sh"), "--before", "1"],
+                       capture_output=True, text=True, cwd=ROOT, timeout=120)
+    assert r.returncode != 0, "a full reset of the published database was not refused"
+    assert "published database" in r.stderr
