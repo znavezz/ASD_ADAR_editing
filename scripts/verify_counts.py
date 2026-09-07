@@ -384,7 +384,11 @@ def run_all(hasura: Hasura, queries: list[Query]) -> tuple[dict, list[str]]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("mode", choices=["capture", "verify"])
-    parser.add_argument("--env-file", type=Path, default=REPO_ROOT / ".env")
+    # Read-only, so it defaults to the primary database: verifying the published
+    # numbers is the point. $ASD_ENV_FILE redirects it, matching the other scripts.
+    parser.add_argument(
+        "--env-file", type=Path,
+        default=Path(os.environ.get("ASD_ENV_FILE", REPO_ROOT / ".env")))
     parser.add_argument(
         "--skip-artifacts", action="store_true", help="Only handle query counts."
     )
