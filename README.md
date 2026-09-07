@@ -60,6 +60,47 @@ Rscript figures/run_all_figures.R
 Rebuilds all five figures from the database. Output lands in `Output/Figures/`, one file per
 manuscript figure. See `figures/README.md`.
 
+## What a full run needs, and how long it takes
+
+The published numbers can be re-checked in seconds against an existing database
+(`scripts/verify_counts.py verify`). Rebuilding that database from the raw inputs is a
+different proposition, and these are the real costs.
+
+**External data** (none of it is in this repository; `Resources/manifest.tsv` records each
+one's release, checksum and source):
+
+| | size |
+|---|---|
+| Ensembl VEP cache, `113_GRCh37` | **43 GB** |
+| UCSC hg19 reference FASTA | 3.0 GB |
+| GTEx v10 (TPM matrix + annotations) | 2.2 GB |
+| VariCarta VCF | 442 MB |
+| Ensembl GRCh37 release-87 CDS FASTA | 133 MB |
+| MANE v1.5 transcripts | 75 MB |
+| Ensembl GRCh37.87 GTF | 41 MB |
+| SFARI gene scores | 136 KB |
+
+**Software**: Docker (for PostgreSQL, Hasura and VEP), BLAT on `$PATH`, and the conda
+environment in `environment.yml`. Network access is required: CADD and the read-through
+SIFT scores are fetched from the Ensembl REST API.
+
+**Disk for outputs**: about 3.5 GB, split between `Output/` (~900 MB) and the PostgreSQL
+data directory (~2.4 GB).
+
+**Measured wall-clock**, on 64 worker processes:
+
+| stage | time |
+|---|---|
+| Phase 1, preprocess + VEP annotation | **~5 min** |
+| Phase 2, database insertion | **~7.5 h** |
+| Phase 3, guides, bystanders and BLAT off-targets | not recorded; dominated by BLAT |
+| All 16 published counts (`verify_counts.py`) | seconds |
+| All five figures (`figures/run_all_figures.R`) | ~10 min |
+
+Phase 2 is the long pole because every insert is a GraphQL mutation and CADD arrives from
+the network in batches. Budget a day for a full rebuild, and note that it is restartable:
+`--start_from db` and `--start_from guides` skip completed stages.
+
 ## Choosing which database a run writes to
 
 `scripts/run_pipeline.py` and `reset_db.sh` both write, and both take `--env-file`
