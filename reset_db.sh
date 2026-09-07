@@ -102,7 +102,10 @@ ensure_db_running() {
     local i=0
     while ! docker exec "${POSTGRES_DOCKER_CONTAINER}" \
         pg_isready -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -q 2>/dev/null; do
-      ((i++))
+      # NOT ((i++)): with i=0 that evaluates to 0, which bash reports as exit status 1,
+      # and `set -e` then kills the script on the first iteration. This loop never ran
+      # more than once, so the branch that starts a stopped container never worked.
+      i=$((i + 1))
       [[ $i -ge 30 ]] && { echo "Error: Postgres did not become ready in time." >&2; exit 1; }
       sleep 2
     done
