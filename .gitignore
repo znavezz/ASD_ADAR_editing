@@ -465,3 +465,7 @@ docs/manuscript_corrections.md
 docs/change_log_for_collaborators.md
 docs/figure_source_migration.md
 docs/removed_2026-08-25.txt
+
+# Local tooling config. Kept out of the published tree: the repository should carry
+# the analysis, not the editor setup used to write it.
+.claude/
