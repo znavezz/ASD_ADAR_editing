@@ -102,9 +102,10 @@ ensure_db_running() {
     local i=0
     while ! docker exec "${POSTGRES_DOCKER_CONTAINER}" \
         pg_isready -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -q 2>/dev/null; do
-      # NOT ((i++)): with i=0 that evaluates to 0, which bash reports as exit status 1,
-      # and `set -e` then kills the script on the first iteration. This loop never ran
-      # more than once, so the branch that starts a stopped container never worked.
+      # Arithmetic post-increment must not be used here: it yields the value from
+      # before the increment, so at zero bash reports exit status 1 and `set -e` kills
+      # the script on the first iteration. That is why the branch which starts a
+      # stopped container never worked.
       i=$((i + 1))
       [[ $i -ge 30 ]] && { echo "Error: Postgres did not become ready in time." >&2; exit 1; }
       sleep 2
@@ -122,10 +123,18 @@ echo "=== Reverting Phase 3 outputs ==="
 ensure_db_running
 
 echo "Truncating guide and bystander tables..."
-docker exec "${POSTGRES_DOCKER_CONTAINER}" \
-  psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" \
-  -c "TRUNCATE guides CASCADE;" \
-  -c "TRUNCATE neighbor_edits CASCADE;"
+# A full reset leaves an empty database with no schema, so a later reset finds no
+# tables to truncate. That is the expected state, not a failure: report it and carry on.
+if docker exec "${POSTGRES_DOCKER_CONTAINER}" \
+     psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -tAc \
+     "SELECT to_regclass('public.guides') IS NOT NULL;" 2>/dev/null | grep -q '^t$'; then
+  docker exec "${POSTGRES_DOCKER_CONTAINER}" \
+    psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" \
+    -c "TRUNCATE guides CASCADE;" \
+    -c "TRUNCATE neighbor_edits CASCADE;"
+else
+  echo "  (no schema in ${POSTGRES_DB} yet - nothing to truncate)"
+fi
 echo "  ✓ guides, variants_guides, bystanders, bystanders_consequences, neighbor_edits (+ scores/consequences) cleared"
 
 echo "Removing BLAT results..."

@@ -99,5 +99,7 @@ def test_reset_wait_loop_survives_set_e():
     """`((i++))` returns the pre-increment value, so at i=0 it exits 1 and `set -e`
     kills the script. The container-start path died on its first iteration and had
     therefore never worked."""
-    text = (ROOT / "reset_db.sh").read_text()
-    assert "((i++))" not in text, "post-increment in a set -e script aborts at i=0"
+    code = [l for l in (ROOT / "reset_db.sh").read_text().splitlines()
+            if not l.lstrip().startswith("#")]
+    offenders = [l for l in code if "((i++))" in l or "((j++))" in l]
+    assert not offenders, f"post-increment in a set -e script aborts at 0: {offenders}"
