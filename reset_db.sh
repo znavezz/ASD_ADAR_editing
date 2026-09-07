@@ -91,6 +91,36 @@ fi
 
 [[ $# -eq 0 ]] || { echo "Error: unexpected arguments: $*" >&2; usage; }
 
+
+# ── Compose containers created from a different directory ─────────────────────
+# `docker compose down` matches containers on the com.docker.compose.project.working_dir
+# label, not just the project name. A container created from another checkout of this
+# repository is invisible to it: the command exits 0 having done nothing, and a later
+# `up` then fails with "container name is already in use". This bit us when the working
+# tree moved and the running containers still carried the old directory.
+#
+# So: check for that case explicitly and tear those containers down by name.
+compose_down() {
+  local stale=()
+  for c in "${POSTGRES_DOCKER_CONTAINER}" "${HASURA_DOCKER_CONTAINER}"; do
+    [[ -n "${c:-}" ]] || continue
+    docker container inspect "$c" >/dev/null 2>&1 || continue
+    local dir
+    dir=$(docker container inspect "$c" \
+            --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' 2>/dev/null)
+    [[ "$dir" == "$PWD" ]] || stale+=("$c")
+  done
+
+  if (( ${#stale[@]} )); then
+    echo "  Containers created from a different directory: ${stale[*]}" >&2
+    echo "  (compose would not match them; stopping and removing by name)" >&2
+    docker stop "${stale[@]}" >/dev/null 2>&1 || true
+    docker rm   "${stale[@]}" >/dev/null 2>&1 || true
+  fi
+
+  USER_ID=$(id -u) GROUP_ID=$(id -g) docker compose down
+}
+
 # ── Helper: ensure containers are running (needed to TRUNCATE) ────────────────
 ensure_db_running() {
   local running
@@ -159,7 +189,7 @@ echo ""
 echo "=== Reverting Phase 2 outputs ==="
 
 echo "Stopping Docker services..."
-USER_ID=$(id -u) GROUP_ID=$(id -g) docker compose down
+compose_down
 
 echo "Removing Postgres data directory..."
 rm -rf "${POSTGRES_DIR:?}"/*

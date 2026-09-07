@@ -1,5 +1,26 @@
+# =============================================================================
+# Every number this manuscript reports, as a runnable query annotated with its
+# verified value. `python scripts/verify_counts.py verify` re-runs all of them
+# against a committed baseline and fails if any disagrees.
+#
+# Each operation is tagged so a reader can tell what it is:
+#
+#   PUBLISHED    the number appears in the manuscript
+#   SENSITIVITY  an alternative convention, reported here so the cost of the
+#                choice can be inspected rather than argued about
+#   SUPERSEDED   an earlier reading, kept to document what changed
+#   SUPPORTING   computed and used, but not quoted in the manuscript
+#
+# Two traps this file exists to prevent:
+#   * ImproveAnalysisNoSplice and ImproveAnalysis_SiftInclusive both return 150,
+#     for different reasons, over sets sharing only 122 variants.
+#   * 404 and 315 are parallel and nested subsets of the same 894; the
+#     manuscript reports 404.
+# =============================================================================
 
 
+
+# [PUBLISHED] Results/Methods funnel; Figure 1B. 329,279 -> 9,962, plus 2,650 / 2,421 / 1,092
 query VariantsAnalysis {
   # The Figure 1A funnel, plus the two headline editing-class denominators.
   # Verified against the live database; `python scripts/verify_counts.py verify` re-checks these.
@@ -82,6 +103,7 @@ query VariantsAnalysis {
   }
 }
 
+# [SUPPORTING] 3,166 - individuals carrying a directly correctable variant; not quoted in the manuscript
 query TreatableSubjects {
   # Verified count; `python scripts/verify_counts.py verify` re-checks it.
   # expect TreatableSubjects: 3166
@@ -105,6 +127,7 @@ query TreatableSubjects {
   }
 }
 
+# [PUBLISHED] 891 (37%) with no deleterious bystander; Results, Figure 1F
 query TreatableVariants_NoDeleteriousBystander {
   # Verified count; `python scripts/verify_counts.py verify` re-checks it.
   # expect TreatableVariants_NoDeleteriousBystander: 891
@@ -128,6 +151,7 @@ query TreatableVariants_NoDeleteriousBystander {
 }
 
 
+# [PUBLISHED] 894 NMD-predicted nonsense variants; Abstract, Results, Discussion
 query NonG2A_StopGained_Pass{
   # Verified count; `python scripts/verify_counts.py verify` re-checks it.
   # expect NonG2A_StopGained_Pass: 894
@@ -158,6 +182,7 @@ query NonG2A_StopGained_Pass{
   }
 }
 
+# [PUBLISHED] 681 with no predicted off-target site; Results
 query NonG2A_StopGained_0offTarget_Pass{
   # Verified count; `python scripts/verify_counts.py verify` re-checks it.
   # expect NonG2A_StopGained_Pass: 681
@@ -203,6 +228,7 @@ query NonG2A_StopGained_0offTarget_Pass{
 # published result. Both queries are now kept and labelled separately.
 # ─────────────────────────────────────────────────────────────────────────────────────────
 
+# [PUBLISHED] 404 with no deleterious bystander; Results
 query NonG2A_StopGained_Pass_NoDeleteriousBystander {
   # PUBLISHED NUMBER. Of the 894 NMD-passing Rescue variants, those with no pre_mRNA
   # bystander of CADD_phred >= 25 outside the variant's own codon. No off-target filter.
@@ -229,6 +255,7 @@ query NonG2A_StopGained_Pass_NoDeleteriousBystander {
   }
 }
 
+# [SUPPORTING] 315 - the nested subset satisfying BOTH conditions. Not the published 404; kept because the two were once conflated
 query NonG2A_StopGained_ZeroOffTarget_NoDeleteriousBystander {
   # NOT the published number. The same bystander test restricted to the 681 zero-off-target
   # subset (hits_85 = 0), i.e. the complement of 366 within 681. Kept because it is the
@@ -256,6 +283,7 @@ query NonG2A_StopGained_ZeroOffTarget_NoDeleteriousBystander {
 }
 
 
+# [SUPERSEDED] 81 - an earlier, stricter reading. Retained to document what changed
 query NonG2A_StopGained_Pass_OLD{
   # Verified count; `python scripts/verify_counts.py verify` re-checks it.
   # expect NonG2A_StopGained_Pass: 81
@@ -287,6 +315,7 @@ query NonG2A_StopGained_Pass_OLD{
   }
 }
 
+# [PUBLISHED] 1,417 distinct individuals; Results
 query NonG2A_StopGained_Pass_Subjects {
   # Verified count; `python scripts/verify_counts.py verify` re-checks it.
   # expect NonG2A_StopGained_Pass_Subjects: 1417
@@ -316,6 +345,7 @@ query NonG2A_StopGained_Pass_Subjects {
 }
 
 
+# [SUPERSEDED] 129 - subjects under the superseded reading above
 query NonG2A_StopGained_Pass_Subjects_OLD {
   # Verified count; `python scripts/verify_counts.py verify` re-checks it.
   # expect NonG2A_StopGained_Pass_Subjects_OLD: 129
@@ -348,6 +378,7 @@ query NonG2A_StopGained_Pass_Subjects_OLD {
 
 
 
+# [PUBLISHED] 4,879 -> 1,963 -> 360 -> 158; Abstract, Results, Figure 2B
 query ImproveAnalysis {
   # Verified count; `python scripts/verify_counts.py verify` re-checks it.
   # expect NonG2A_Missense: 4879
@@ -449,6 +480,7 @@ query ImproveAnalysis {
   }
 }
 
+# [SENSITIVITY] 150 - excluding splice variants. Note this 150 is NOT the SIFT-inclusive 150 below; the two sets share only 122 variants
 query ImproveAnalysisNoSplice {
   # Verified count; `python scripts/verify_counts.py verify` re-checks it.
   # expect NonG2A_Missense: 4721
@@ -553,6 +585,7 @@ query ImproveAnalysisNoSplice {
 }
 
 
+# [SENSITIVITY] 331 / 150 under SIFT <=0.05 instead of <0.05. The Methods state <0.05; this is what the alternative convention would cost
 query ImproveAnalysis_SiftInclusive {
   # Verified counts; `python scripts/verify_counts.py verify` re-checks them.
   # expect NonG2A_Missense_Improve: 150
@@ -630,6 +663,7 @@ query ImproveAnalysis_SiftInclusive {
   }
 }
 
+# [SENSITIVITY] 188 individuals under SIFT <=0.05
 query ImproveSubjects_SiftInclusive {
   # Verified count; `python scripts/verify_counts.py verify` re-checks it.
   # expect NonG2A_Missense_Improve_Subjects: 188
@@ -669,6 +703,7 @@ query ImproveSubjects_SiftInclusive {
   }
 }
 
+# [PUBLISHED] 201 individuals carrying an improvable missense variant; Results
 query ImproveSubjects {
   # Verified count; `python scripts/verify_counts.py verify` re-checks it.
   # expect NonG2A_Missense_Improve_Subjects: 201
@@ -699,6 +734,7 @@ query ImproveSubjects {
   }
 }
 
+# [SENSITIVITY] 193 individuals, excluding splice variants
 query ImproveSubjectsNoSplice {
   # Verified count; `python scripts/verify_counts.py verify` re-checks it.
   # expect NonG2A_Missense_Improve_Subjects: 193
@@ -740,6 +776,8 @@ SUPPLEMENTED VARIANTS
 
 
 
+# [SUPPORTING] parameterised export of the full correctable set; takes $limit/$offset,
+# so the verifier skips it. Feeds scripts/export_tables.py, not a manuscript number.
 query TreatableVariants($limit: Int!, $offset: Int!) {
   TreatableVariants: variants(
     where: {
@@ -807,6 +845,7 @@ query TreatableVariants($limit: Int!, $offset: Int!) {
 # This query did not exist when the manuscript was written, which is why the sum was used.
 # expect: 4644
 # ═══════════════════════════════════════════════════════════════════════════════════════
+# [PUBLISHED] 4,644 distinct individuals (13.1%); Abstract, Discussion. A set UNION, not a sum - summing double-counts 140 people
 query DistinctSubjects_AnyEditingClass {
   DistinctSubjects_AnyEditingClass: subjects_aggregate(where: {_or: [
 
