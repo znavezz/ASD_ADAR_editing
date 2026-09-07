@@ -137,7 +137,10 @@ else:
     raise RuntimeError(f"Database '{POSTGRES_DB}' not created after 30s. Check docker logs.")
 
 logging.info("Postgres is ready. Loading schema...")
-schema_path = DB_DIR / "schema.sql"
+# The schema is tracked source, identical for every environment, so it is read from
+# the repository rather than from DB_DIR. DB_DIR names where a particular database
+# keeps its data, and pointing it at a scratch stack must not hide the DDL.
+schema_path = PROJECT_ROOT / "db" / "schema.sql"
 with open(schema_path, "r") as f:
     result = subprocess.run(
         ["docker", "exec", "-i", POSTGRES_DOCKER_CONTAINER, "psql", "-U", POSTGRES_USER, "-d", POSTGRES_DB],
