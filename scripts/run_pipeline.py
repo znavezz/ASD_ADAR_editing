@@ -1,4 +1,25 @@
-## PreProcess
+"""Run the analysis pipeline: preprocess, load the database, design the guides.
+
+Three stages, each a module under `pipeline/`, run in order and restartable with
+`--start_from`:
+
+    preprocess  VariCarta VCF -> reference-validated, VEP-annotated table   (~5 min)
+    db          that table -> a populated PostgreSQL database               (~7.5 h)
+    guides      guides, bystanders, off-targets, read-through scores
+
+Stages receive their shared state through `runpy.run_path(init_globals=...)` rather than
+importing it, so what crosses the boundary is the explicit `stage_globals` dict below and
+nothing else. Each stage imports what it needs for itself.
+
+This writes. `--env-file` names the database, defaults to the scratch stack, and refuses
+the published one unless ASD_ALLOW_PUBLISHED_WRITE=yes:
+
+    python scripts/run_pipeline.py                            # scratch stack
+    python scripts/run_pipeline.py --start_from guides        # skip completed stages
+
+See the README for what a full run needs and how long it takes.
+"""
+
 import sys
 from pathlib import Path as _Path
 

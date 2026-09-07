@@ -1,3 +1,24 @@
+"""Utilities shared by the pipeline stages.
+
+Deliberately small, and deliberately free of import-time side effects: an earlier version
+spawned twenty worker processes and committed to a matplotlib backend simply by being
+imported, which is why three modules once wrote their own copy of `gql` rather than
+import this file.
+
+What lives here:
+
+  * `gql` - the Hasura GraphQL client, with one retry policy for the whole pipeline.
+  * `load_vcf`, `parse_info_column`, `check_columns` - VCF reading and validation.
+  * `add_genome_ref_column` - threaded reference-base lookup against the genome FASTA,
+    each thread holding its own handle since pyfaidx objects are not thread-safe.
+  * `consequence_terms_to_regions` - collapses Sequence Ontology terms to the fourteen
+    region names this project uses. A project convention, not a standard.
+  * `calculate_psl_percent_identity` - the UCSC BLAT identity formula, over the aligned
+    region rather than the full query.
+  * `normalize_missing` - one definition of what counts as absent, so NULL, empty string
+    and "NA" cannot mean different things in different tables.
+"""
+
 import pandas as pd  
 import numpy as np   
 import os

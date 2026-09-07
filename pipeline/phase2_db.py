@@ -1,3 +1,27 @@
+"""Stage 2: load the annotated variants into PostgreSQL and attach every external score.
+
+The longest stage - about seven and a half hours for the published run - because each
+variant acquires annotation from several sources, and CADD arrives over the network in
+batches. It creates the schema from `db/schema.sql`, bulk-loads the staging tables, then
+populates the normalised model:
+
+  * **Variants and their effects** - consequence terms collapsed to the project's region
+    names, codons, CDS and protein positions, NMD status, variant class.
+  * **Scores** - SIFT and PolyPhen from the VEP annotation; CADD from the Ensembl REST
+    API (`?CADD=1`), which is why this stage needs network access; AlphaMissense where
+    available.
+  * **Allele frequencies** - gnomAD exome per-population values plus VEP's MAX_AF, via
+    `allele_freq_common.py`. The GRCh37 cache carries no genome frequencies, so every
+    `gnomadg_*` column is NULL by construction.
+  * **Gene-level annotation** - SFARI gene scores, and GTEx v10 brain expression keyed
+    by unversioned ENSG.
+
+Of the 525,687 staged rows, 171 fail preprocessing and are excluded, leaving the
+published 329,279 unique variants.
+
+Run through `scripts/run_pipeline.py`. It writes, so the target database is an explicit
+argument; see `--env-file`.
+"""
 
 # --- imports this stage needs -------------------------------------------------
 # Previously inherited from the runner's scope via exec(). A stage that cannot say

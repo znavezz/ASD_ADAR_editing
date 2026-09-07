@@ -1,3 +1,24 @@
+"""Stage 1: read the VariCarta VCF, validate it against the genome, and annotate with VEP.
+
+Turns the raw download into `varicarta_vepped.txt`, the single input every later stage
+reads. Four things happen, in order:
+
+  1. **Normalise and deduplicate.** 525,687 catalogued rows collapse to 329,411 unique
+     (chr, pos, ref, alt) variants. Three rows where REF equals ALT are dropped: they
+     describe no change.
+  2. **Validate against hg19.** Each REF is checked against the reference base at that
+     coordinate. 45 variants (0.01%) disagree and are removed rather than corrected -
+     a REF that does not match the genome means the row's coordinates cannot be trusted.
+  3. **Annotate.** VEP runs in a Docker container against the offline GRCh37 cache, with
+     `--pick`, so exactly one transcript is chosen per variant. Every published number is
+     conditioned on that choice.
+  4. **Write** the annotated table for stage 2.
+
+Coordinates are 1-based throughout, matching VCF. The only 0-based arithmetic is inside
+pyfaidx slice expressions, always via an explicit `-1`.
+
+Run through `scripts/run_pipeline.py`, which supplies the paths and the database target.
+"""
 
 # --- imports this stage needs -------------------------------------------------
 # Previously inherited from the runner's scope via exec(). A stage that cannot say

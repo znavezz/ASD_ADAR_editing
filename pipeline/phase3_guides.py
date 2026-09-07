@@ -1,3 +1,27 @@
+"""Stage 3: design the guides, enumerate bystanders, and measure off-target risk.
+
+Everything downstream of annotation that concerns the edit itself:
+
+  * **Guides.** A 41-nucleotide window - the variant flanked by 20 nucleotides either
+    side - extracted from the genome for the pre-mRNA target and from transcript
+    sequence for the mature-mRNA target. On a minus-strand gene the window is
+    reverse-complemented and the variant index mirrored with it.
+  * **Bystanders.** Every adenosine within 10 nucleotides of the variant, since ADAR may
+    deaminate neighbours as well as the target. Each is scored with CADD, and those at
+    PHRED >= 25 count as potentially deleterious.
+  * **Off-targets.** Each guide is aligned to hg19 with BLAT using the UCSC web tool's
+    parameters (`-stepSize=5 -repMatch=2253 -minScore=20 -minIdentity=0`). Percent
+    identity is computed as UCSC does, over the aligned region, and hits at >= 85%
+    identity outside the variant's own locus are counted as off-target.
+  * **Read-through scores.** For nonsense variants, the SIFT score of recoding the stop
+    to TGG (tryptophan). That substitution does not exist in the input, so it has no row
+    in the VEP output and is fetched from the Ensembl REST HGVS endpoint - offline VEP
+    refuses HGVS input.
+  * **Alternative-codon edits**, delegated to `neighbor_drill/`.
+
+Run through `scripts/run_pipeline.py`. Needs BLAT on PATH, the genome FASTA, and network
+access for the read-through scores.
+"""
 
 # --- imports this stage needs -------------------------------------------------
 # Previously inherited from the runner's scope via exec(). A stage that cannot say
