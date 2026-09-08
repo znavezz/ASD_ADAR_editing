@@ -33,7 +33,10 @@ import json
 import time
 import logging
 import subprocess
-import datetime
+# The class, not the module: this stage calls datetime.utcnow(). It used to inherit
+# the name from the runner's scope via exec(), and acquired `import datetime` when the
+# stages were given explicit imports - which made every call an AttributeError.
+from datetime import datetime
 import requests
 import pandas as pd
 from typing import Optional, Tuple
