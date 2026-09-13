@@ -46,3 +46,23 @@ def test_phase2_binds_datetime_as_the_class():
     src = (ROOT / "pipeline" / "phase2_db.py").read_text()
     assert "from datetime import datetime" in src
     assert "\nimport datetime\n" not in src
+
+
+def test_data_paths_resolve_against_the_repository_root():
+    """neighbor_drill resolves relative data paths like "Resources/...".
+
+    `_ROOT` there is pipeline/ - correct for the sys.path insert, since helpers.py
+    lives beside it - but data paths are relative to the repository, one level
+    further up. Using one variable for both resolved Resources/... to
+    pipeline/Resources/... once neighbor_drill moved a level deeper, and the
+    pipeline died on it nine hours into a run.
+    """
+    import sys
+    sys.path.insert(0, str(ROOT / "pipeline"))
+    from neighbor_drill.neighbor_edits_pipeline import _resolve as resolve_edits
+    from neighbor_drill.improve_guides_pipeline import _resolve as resolve_guides
+
+    for resolve in (resolve_edits, resolve_guides):
+        got = resolve("Resources/Homo_sapiens.GRCh37.87.gtf.gz")
+        assert got == ROOT / "Resources" / "Homo_sapiens.GRCh37.87.gtf.gz", got
+        assert "pipeline/Resources" not in str(got)

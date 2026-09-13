@@ -32,9 +32,15 @@ from . import offline_vep as ov
 log = logging.getLogger(__name__)
 
 
+# _ROOT is pipeline/ - right for the sys.path insert above, since helpers.py lives there.
+# Data paths are relative to the REPOSITORY, one level further up. Conflating the two
+# resolved Resources/... to pipeline/Resources/... once neighbor_drill moved a level deeper.
+_REPO = Path(__file__).resolve().parents[2]
+
+
 def _resolve(p):
     p = Path(p).expanduser()
-    return p if p.is_absolute() else (_ROOT / p).resolve()
+    return p if p.is_absolute() else (_REPO / p).resolve()
 
 
 GET_IMPROVE_VARIANTS = """
