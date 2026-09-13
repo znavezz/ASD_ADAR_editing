@@ -3,22 +3,14 @@
 # verified value. `python scripts/verify_counts.py verify` re-runs all of them
 # against a committed baseline and fails if any disagrees.
 #
-# Each operation is tagged so a reader can tell what it is:
+# Each operation is tagged:
 #
 #   PUBLISHED    the number appears in the manuscript
-#   SENSITIVITY  an alternative convention, reported here so the cost of the
-#                choice can be inspected rather than argued about
-#   SUPERSEDED   an earlier reading, kept to document what changed
-#   SUPPORTING   computed and used, but not quoted in the manuscript
+#   SUPPORTING   computed and used, but not quoted
 #
-# Two traps this file exists to prevent:
-#   * ImproveAnalysisNoSplice and ImproveAnalysis_SiftInclusive both return 150,
-#     for different reasons, over sets sharing only 122 variants.
-#   * 404 and 315 are parallel and nested subsets of the same 894; the
-#     manuscript reports 404.
+# One trap this file exists to prevent: 404 and 315 are parallel and nested
+# subsets of the same 894. The manuscript reports 404.
 # =============================================================================
-
-
 
 # [PUBLISHED] Results/Methods funnel; Figure 1B. 329,279 -> 9,962, plus 2,650 / 2,421 / 1,092
 query VariantsAnalysis {
@@ -149,7 +141,6 @@ query TreatableVariants_NoDeleteriousBystander {
     aggregate { count }
   }
 }
-
 
 # [PUBLISHED] 894 NMD-predicted nonsense variants; Abstract, Results, Discussion
 query NonG2A_StopGained_Pass{
@@ -282,39 +273,6 @@ query NonG2A_StopGained_ZeroOffTarget_NoDeleteriousBystander {
   }
 }
 
-
-# [SUPERSEDED] 81 - an earlier, stricter reading. Retained to document what changed
-query NonG2A_StopGained_Pass_OLD{
-  # Verified count; `python scripts/verify_counts.py verify` re-checks it.
-  # expect NonG2A_StopGained_Pass: 81
-  NonG2A_StopGained_Pass: variants_aggregate(
-    where: {
-      class: {_eq: "SNV"},
-      # negate the G>A logic (unchanged from your query)
-      _not: {
-        _or: [
-          {ref: {_eq: "G"}, alt: {_eq: "A"}, gene: {strand: {_eq: "+"}}},
-          {ref: {_eq: "C"}, alt: {_eq: "T"}, gene: {strand: {_eq: "-"}}}
-        ]
-      },
-      # CDS / protein_coding / SFARI (unchanged)
-      variants_features: {feature: {biotype: {name: {_eq: "protein_coding"}}}},
-      gene: {genes_quantitative_scores: {quantitative_score: {name: {_eq: "SFARI Gene Score"}}}},
-      # StopGained only (unchanged)
-      variants_consequences: {consequence: {name: {_eq: "StopGained"}}},
-
-      # ── ADDED: CADD_phred >= 25 ──
-      variants_quantitative_scores: {quantitative_score: {name: {_eq: "CADD_phred"}, value: {_gte: 25}}},
-      # ── ADDED: rescue SIFT >= 0.05 (Rescue / pre_mRNA guide) ──
-      variants_guides: {edit_type: {_eq: "Rescue"}, guide: {type: {_eq: "pre_mRNA"}}, rescue_sift: {_gte: 0.05}}
-    }
-  ) {
-    aggregate {
-      count
-    }
-  }
-}
-
 # [PUBLISHED] 1,417 distinct individuals; Results
 query NonG2A_StopGained_Pass_Subjects {
   # Verified count; `python scripts/verify_counts.py verify` re-checks it.
@@ -343,40 +301,6 @@ query NonG2A_StopGained_Pass_Subjects {
   }
 }
 }
-
-
-# [SUPERSEDED] 129 - subjects under the superseded reading above
-query NonG2A_StopGained_Pass_Subjects_OLD {
-  # Verified count; `python scripts/verify_counts.py verify` re-checks it.
-  # expect NonG2A_StopGained_Pass_Subjects_OLD: 129
- NonG2A_StopGained_Pass_Subjects_OLD: subjects_aggregate(
-  where: {
-    variants_subjects: {
-      variant: {
-        class: {_eq: "SNV"},
-        _not: {
-          _or: [
-            {ref: {_eq: "G"}, alt: {_eq: "A"}, gene: {strand: {_eq: "+"}}},
-            {ref: {_eq: "C"}, alt: {_eq: "T"}, gene: {strand: {_eq: "-"}}}
-          ]
-        },
-        variants_features: {feature: {biotype: {name: {_eq: "protein_coding"}}}},
-        gene: {genes_quantitative_scores: {quantitative_score: {name: {_eq: "SFARI Gene Score"}}}},
-        variants_consequences: {consequence: {name: {_eq: "StopGained"}}},
-        variants_quantitative_scores: {quantitative_score: {name: {_eq: "CADD_phred"}, value: {_gte: 25}}},
-        variants_guides: {edit_type: {_eq: "Rescue"}, guide: {type: {_eq: "pre_mRNA"}}, rescue_sift: {_gte: 0.05}}
-      }
-    }
-  }
-) {
-  aggregate {
-    count
-  }
-}
-}
-
-
-
 
 # [PUBLISHED] 4,879 -> 1,963 -> 360 -> 158; Abstract, Results, Figure 2B
 query ImproveAnalysis {
@@ -480,229 +404,6 @@ query ImproveAnalysis {
   }
 }
 
-# [SENSITIVITY] 150 - excluding splice variants. Note this 150 is NOT the SIFT-inclusive 150 below; the two sets share only 122 variants
-query ImproveAnalysisNoSplice {
-  # Verified count; `python scripts/verify_counts.py verify` re-checks it.
-  # expect NonG2A_Missense: 4721
-  # expect NonG2A_Missense_Editable: 1890
-  # expect NonG2A_Missense_Improve: 150
-  # expect NonG2A_Missense_Improve_Simple: 350
-  # Improve (neighbor-drill) funnel — PURE non-G>A missense in the SFARI protein-coding universe:
-  # variants that ALSO carry a Splice consequence are EXCLUDED (their splice defect isn't fixed by
-  # a codon edit). Same tiers as ImproveAnalysis; Splice is added as a third clause of each _not.
-
-  # 1) Missense pool (Splice-carrying variants excluded)
-  NonG2A_Missense: variants_aggregate(
-    where: {
-      class: {_eq: "SNV"},
-      _not: {
-        _or: [
-          {ref: {_eq: "G"}, alt: {_eq: "A"}, gene: {strand: {_eq: "+"}}},
-          {ref: {_eq: "C"}, alt: {_eq: "T"}, gene: {strand: {_eq: "-"}}},
-          # ── ADDED: drop variants that also carry a Splice consequence ──
-          {variants_consequences: {consequence: {name: {_eq: "Splice"}}}}
-        ]
-      },
-      variants_features: {feature: {biotype: {name: {_eq: "protein_coding"}}}},
-      gene: {genes_quantitative_scores: {quantitative_score: {name: {_eq: "SFARI Gene Score"}}}},
-      variants_consequences: {consequence: {name: {_eq: "Missense"}}}
-    }
-  ) {
-    aggregate {
-      count
-    }
-  }
-
-  # 2) ADAR-addressable — the codon contains at least one editable adenosine.
-  NonG2A_Missense_Editable: variants_aggregate(
-    where: {
-      class: {_eq: "SNV"},
-      _not: {
-        _or: [
-          {ref: {_eq: "G"}, alt: {_eq: "A"}, gene: {strand: {_eq: "+"}}},
-          {ref: {_eq: "C"}, alt: {_eq: "T"}, gene: {strand: {_eq: "-"}}},
-          {variants_consequences: {consequence: {name: {_eq: "Splice"}}}}
-        ]
-      },
-      variants_features: {feature: {biotype: {name: {_eq: "protein_coding"}}}},
-      gene: {genes_quantitative_scores: {quantitative_score: {name: {_eq: "SFARI Gene Score"}}}},
-      variants_consequences: {consequence: {name: {_eq: "Missense"}}},
-      # ── codon has >=1 adenosine to edit (the neighbor-drill candidate filter) ──
-      alt_codon: {_or: [{nt1: {_eq: "A"}}, {nt2: {_eq: "A"}}, {nt3: {_eq: "A"}}]}
-    }
-  ) {
-    aggregate {
-      count
-    }
-  }
-
-  # 3) "Simple" improves — best edit tolerated & better than the variant AA (incl. already-tolerated).
-  NonG2A_Missense_Improve_Simple: variants_aggregate(
-    where: {
-      class: {_eq: "SNV"},
-      _not: {
-        _or: [
-          {ref: {_eq: "G"}, alt: {_eq: "A"}, gene: {strand: {_eq: "+"}}},
-          {ref: {_eq: "C"}, alt: {_eq: "T"}, gene: {strand: {_eq: "-"}}},
-          {variants_consequences: {consequence: {name: {_eq: "Splice"}}}}
-        ]
-      },
-      variants_features: {feature: {biotype: {name: {_eq: "protein_coding"}}}},
-      gene: {genes_quantitative_scores: {quantitative_score: {name: {_eq: "SFARI Gene Score"}}}},
-      variants_consequences: {consequence: {name: {_eq: "Missense"}}},
-      neighbor_edits: {is_best: {_eq: true}, improves: {_eq: true}}
-    }
-  ) {
-    aggregate {
-      count
-    }
-  }
-
-  # 4) Really improved — deleterious residue (variant SIFT < 0.05) turned tolerated (edit SIFT >= 0.05).
-  NonG2A_Missense_Improve: variants_aggregate(
-    where: {
-      class: {_eq: "SNV"},
-      _not: {
-        _or: [
-          {ref: {_eq: "G"}, alt: {_eq: "A"}, gene: {strand: {_eq: "+"}}},
-          {ref: {_eq: "C"}, alt: {_eq: "T"}, gene: {strand: {_eq: "-"}}},
-          {variants_consequences: {consequence: {name: {_eq: "Splice"}}}}
-        ]
-      },
-      variants_features: {feature: {biotype: {name: {_eq: "protein_coding"}}}},
-      gene: {genes_quantitative_scores: {quantitative_score: {name: {_eq: "SFARI Gene Score"}}}},
-      variants_consequences: {consequence: {name: {_eq: "Missense"}}},
-      # ── variant is deleterious: its own SIFT < 0.05 ──
-      variants_quantitative_scores: {quantitative_score: {name: {_eq: "SIFT"}, value: {_lt: 0.05}}},
-      # ── best neighbor (Improve) edit is tolerated (SIFT >= 0.05) & better than the variant AA ──
-      neighbor_edits: {is_best: {_eq: true}, improves: {_eq: true}}
-    }
-  ) {
-    aggregate {
-      count
-    }
-  }
-}
-
-
-# [SENSITIVITY] 331 / 150 under SIFT <=0.05 instead of <0.05. The Methods state <0.05; this is what the alternative convention would cost
-query ImproveAnalysis_SiftInclusive {
-  # Verified counts; `python scripts/verify_counts.py verify` re-checks them.
-  # expect NonG2A_Missense_Improve: 150
-  # expect NonG2A_Missense_Improve_Simple: 331
-  #
-  # The Improve funnel under the inclusive SIFT boundary: deleterious is SIFT <= 0.05 and
-  # tolerated is SIFT > 0.05. `ImproveAnalysis` above uses the exclusive boundary (< 0.05 and
-  # >= 0.05) and returns 158 / 360. Both are stated because the boundary is a convention, not
-  # a measurement: Ensembl reports SIFT to two decimals, so a stored 0.05 is any true value in
-  # [0.045, 0.055), and 114 variants in this pool sit exactly on it.
-  #
-  # These queries read the raw scores in `neighbor_edit_scores` instead of the precomputed
-  # `neighbor_edits.improves` column, because the threshold is invisible inside that column.
-  # Run with the exclusive operators (value: {_lt: 0.05} / {_gte: 0.05}) this same form returns
-  # 158 and 360, matching `ImproveAnalysis` exactly -- which is what establishes that the two
-  # formulations ask the same question.
-
-  # Best edit tolerated and better than the variant residue, whatever the variant's own score.
-  NonG2A_Missense_Improve_Simple: variants_aggregate(
-    where: {
-      class: {_eq: "SNV"},
-      _not: {
-        _or: [
-          {ref: {_eq: "G"}, alt: {_eq: "A"}, gene: {strand: {_eq: "+"}}},
-          {ref: {_eq: "C"}, alt: {_eq: "T"}, gene: {strand: {_eq: "-"}}}
-        ]
-      },
-      variants_features: {feature: {biotype: {name: {_eq: "protein_coding"}}}},
-      gene: {genes_quantitative_scores: {quantitative_score: {name: {_eq: "SFARI Gene Score"}}}},
-      variants_consequences: {consequence: {name: {_eq: "Missense"}}},
-      neighbor_edits: {
-        is_best: {_eq: true},
-        _or: [
-          # A restore-to-reference edit counts however it scores, so it is carried through
-          # here rather than filtered on SIFT (neighbor_drill/core.py:201).
-          {restores_reference: {_eq: true}},
-          {neighbor_edit_scores: {source: {_eq: "SIFT"}, value: {_gt: 0.05}, improvement: {_gt: 0}}}
-        ]
-      }
-    }
-  ) {
-    aggregate {
-      count
-    }
-  }
-
-  # Deleterious residue (variant's own SIFT <= 0.05) turned tolerated by the best edit.
-  NonG2A_Missense_Improve: variants_aggregate(
-    where: {
-      class: {_eq: "SNV"},
-      _not: {
-        _or: [
-          {ref: {_eq: "G"}, alt: {_eq: "A"}, gene: {strand: {_eq: "+"}}},
-          {ref: {_eq: "C"}, alt: {_eq: "T"}, gene: {strand: {_eq: "-"}}}
-        ]
-      },
-      variants_features: {feature: {biotype: {name: {_eq: "protein_coding"}}}},
-      gene: {genes_quantitative_scores: {quantitative_score: {name: {_eq: "SFARI Gene Score"}}}},
-      variants_consequences: {consequence: {name: {_eq: "Missense"}}},
-      variants_quantitative_scores: {quantitative_score: {name: {_eq: "SIFT"}, value: {_lte: 0.05}}},
-      neighbor_edits: {
-        is_best: {_eq: true},
-        _or: [
-          # A restore-to-reference edit counts however it scores, so it is carried through
-          # here rather than filtered on SIFT (neighbor_drill/core.py:201).
-          {restores_reference: {_eq: true}},
-          {neighbor_edit_scores: {source: {_eq: "SIFT"}, value: {_gt: 0.05}, improvement: {_gt: 0}}}
-        ]
-      }
-    }
-  ) {
-    aggregate {
-      count
-    }
-  }
-}
-
-# [SENSITIVITY] 188 individuals under SIFT <=0.05
-query ImproveSubjects_SiftInclusive {
-  # Verified count; `python scripts/verify_counts.py verify` re-checks it.
-  # expect NonG2A_Missense_Improve_Subjects: 188
-  # Individuals carrying an improved variant, under the inclusive SIFT boundary.
-  # `ImproveSubjects` above uses the exclusive boundary and returns 201.
-  NonG2A_Missense_Improve_Subjects: subjects_aggregate(
-    where: {
-      variants_subjects: {
-        variant: {
-          class: {_eq: "SNV"},
-          _not: {
-            _or: [
-              {ref: {_eq: "G"}, alt: {_eq: "A"}, gene: {strand: {_eq: "+"}}},
-              {ref: {_eq: "C"}, alt: {_eq: "T"}, gene: {strand: {_eq: "-"}}}
-            ]
-          },
-          variants_features: {feature: {biotype: {name: {_eq: "protein_coding"}}}},
-          gene: {genes_quantitative_scores: {quantitative_score: {name: {_eq: "SFARI Gene Score"}}}},
-          variants_consequences: {consequence: {name: {_eq: "Missense"}}},
-          variants_quantitative_scores: {quantitative_score: {name: {_eq: "SIFT"}, value: {_lte: 0.05}}},
-          neighbor_edits: {
-            is_best: {_eq: true},
-            _or: [
-              # A restore-to-reference edit counts however it scores, so it is carried through
-              # here rather than filtered on SIFT (neighbor_drill/core.py:201).
-              {restores_reference: {_eq: true}},
-              {neighbor_edit_scores: {source: {_eq: "SIFT"}, value: {_gt: 0.05}, improvement: {_gt: 0}}}
-            ]
-          }
-        }
-      }
-    }
-  ) {
-    aggregate {
-      count
-    }
-  }
-}
-
 # [PUBLISHED] 201 individuals carrying an improvable missense variant; Results
 query ImproveSubjects {
   # Verified count; `python scripts/verify_counts.py verify` re-checks it.
@@ -734,47 +435,9 @@ query ImproveSubjects {
   }
 }
 
-# [SENSITIVITY] 193 individuals, excluding splice variants
-query ImproveSubjectsNoSplice {
-  # Verified count; `python scripts/verify_counts.py verify` re-checks it.
-  # expect NonG2A_Missense_Improve_Subjects: 193
-  # Individuals carrying a really-improved variant (deleterious -> tolerated).
-  NonG2A_Missense_Improve_Subjects: subjects_aggregate(
-    where: {
-      variants_subjects: {
-        variant: {
-          class: {_eq: "SNV"},
-          _not: {
-            _or: [
-              {ref: {_eq: "G"}, alt: {_eq: "A"}, gene: {strand: {_eq: "+"}}},
-              {ref: {_eq: "C"}, alt: {_eq: "T"}, gene: {strand: {_eq: "-"}}},
-              {variants_consequences: {consequence: {name: {_eq: "Splice"}}}}
-            ]
-          },
-          variants_features: {feature: {biotype: {name: {_eq: "protein_coding"}}}},
-          gene: {genes_quantitative_scores: {quantitative_score: {name: {_eq: "SFARI Gene Score"}}}},
-          variants_consequences: {consequence: {name: {_eq: "Missense"}}},
-          variants_quantitative_scores: {quantitative_score: {name: {_eq: "SIFT"}, value: {_lt: 0.05}}},
-          neighbor_edits: {is_best: {_eq: true}, improves: {_eq: true}}
-        }
-      }
-    }
-  ) {
-    aggregate {
-      count
-    }
-  }
-}
-
-
-
-
-
 #################################################################################
 SUPPLEMENTED VARIANTS
 #################################################################################
-
-
 
 # [SUPPORTING] parameterised export of the full correctable set; takes $limit/$offset,
 # so the verifier skips it. Feeds scripts/export_tables.py, not a manuscript number.

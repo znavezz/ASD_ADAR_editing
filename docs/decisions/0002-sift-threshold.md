@@ -80,9 +80,9 @@ Splice-excluded variants of the same queries (diagnostic, not published):
 
 | Quantity | Published | Adopted |
 |---|---|---|
-| `ImproveAnalysisNoSplice` headline | **150** ✅ | **143** |
-| `ImproveAnalysisNoSplice` tier 3 | **350** ✅ | **322** |
-| `ImproveSubjectsNoSplice` | **193** ✅ | **181** |
+| Improve headline, splice variants excluded | **150** ✅ | **143** |
+| Improve tier 3, splice variants excluded | **350** ✅ | **322** |
+| Individuals, splice variants excluded | **193** ✅ | **181** |
 
 **Unchanged** — these do not touch the threshold: 3,166 direct-repair individuals · 1,417
 read-through individuals · 4,879 missense pool · 1,963 editable · and the entire funnel
@@ -118,8 +118,9 @@ gridlines, it is unaffected — no point moves, only its label.
 
 ## ⚠️ Two different 150s — do not conflate them
 
-The new Improve headline is **150**. The published `ImproveAnalysisNoSplice` headline is
-**also 150**. These are **different sets of variants** and the equality is a coincidence:
+The Improve headline under `<=0.05` is **150**. The headline under the published `<0.05`
+with splice variants excluded is **also 150**. These are **different sets of variants** and
+the equality is a coincidence:
 
 ```
 150  no-splice, published threshold
@@ -158,9 +159,6 @@ Rscript figures/ver1/Figure_2/99_no_marginals.R                        # as publ
 SIFT_TOLERATED_STRICT=TRUE Rscript figures/ver1/Figure_2/99_no_marginals.R
 ```
 
-- `queries/queries.txt` carries both readings as named operations
-  (`ImproveAnalysis` / `ImproveAnalysis_SiftInclusive`), each annotated with its verified
-  count, so the difference can be inspected in the data instead of inferred from prose.
 
 ## Verification
 
@@ -264,9 +262,9 @@ rounding detail.
 *Added 2026-08-16.* The table above lists counts. Two more consequences were checked, and one
 of them needs work that regenerating a number will not cover.
 
-**No published count depends on the rescue SIFT.** `rescue_sift` appears in exactly two
-queries, `NonG2A_StopGained_Pass_OLD` (81) and `NonG2A_StopGained_Pass_Subjects_OLD` (129), and
-both are superseded `_OLD` variants. The published `NonG2A_StopGained_Pass_Subjects` (1,417)
+**No published count depends on the rescue SIFT.** `rescue_sift` was used only by two
+superseded operations, returning 81 and 129, which have since been removed from
+`queries/queries.txt`. The published `NonG2A_StopGained_Pass_Subjects` (1,417)
 filters on consequence, biotype, SFARI and NMD only. So the Rescue funnel is unaffected even
 though 142 variant-guide rows carry a rescue SIFT of exactly 0.05.
 
@@ -287,3 +285,10 @@ change with them. That panel is `figures/ver1/Figure_2/00_panel_B_cadd_sift.rmd`
 published Figure 3B is the missense-optimization scatter
 (`figures/Figure_3/03_panel_B_missense_scatter.R`), whose SIFT comparison does route through
 `sift_tolerated()` and therefore honours the switch above.
+
+## The alternative reading is no longer runnable from this repository
+
+The operations that computed the `<=0.05` figures, and the two superseded `_OLD` ones, were
+removed from `queries/queries.txt` so the file carries only what the manuscript reports. The
+numbers in this record stand as the measurement that was made; reproducing them now means
+re-expressing the comparison against `neighbor_edit_scores`, as the removed operations did.

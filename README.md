@@ -134,8 +134,7 @@ where they are made rather than buried:
 
 - **The SIFT boundary.** Scores are reported to two decimal places, so a stored `0.05` is any
   true value in `[0.045, 0.055)`, and 750 variants sit exactly on it. The published analysis
-  treats `<0.05` as deleterious. `queries/queries.txt` also carries the `≤0.05` reading, so both are
-  reproducible from this repository and the difference can be inspected rather than argued.
+  treats `<0.05` as deleterious, which is the convention the Methods state.
 - **Transcript choice.** Every published number is conditioned on VEP's `--pick` transcript.
   The alternative — reporting all transcripts — is a different analysis, not a correction.
 
