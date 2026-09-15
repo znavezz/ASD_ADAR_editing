@@ -58,8 +58,8 @@ p <- ggplot(d, aes(x = pct, y = editing_class, fill = band)) +
             position = position_stack(vjust = 0.5, reverse = TRUE),
             colour = ifelse(lab$band %in% c("0.001 - 0.01", ">= 0.01"), "white", "grey15"),
             size = 3.1, fontface = "bold") +
-  scale_fill_manual(values = af_fill, name = "gnomAD exome allele frequency",
-                    guide = guide_legend(nrow = 1, title.position = "top", title.hjust = 0)) +
+  scale_fill_manual(values = af_fill, name = NULL,
+                    guide = guide_legend(nrow = 1)) +
   scale_x_continuous(labels = function(x) paste0(x, "%"),
                      expand = expansion(mult = c(0, 0.02))) +
   scale_y_discrete(labels = function(v) {
@@ -67,13 +67,12 @@ p <- ggplot(d, aes(x = pct, y = editing_class, fill = band)) +
     paste0(v, "\n(n = ", trimws(format(tot, big.mark = ",")), ")")
   }) +
   labs(
-    title = "gnomAD allele frequency of variants amenable to ADAR-mediated editing",
+    title = "gnomAD exome allele frequency of variants amenable to ADAR-mediated editing",
     x = "Share of variants in the class", y = NULL
   ) +
   theme_publication(base_size = 12) +
   theme(
     legend.position    = "top",
-    legend.title       = element_text(size = 9.5),
     legend.text        = element_text(size = 9),
     panel.grid.major.y = element_blank(),
     panel.grid.major.x = element_line(colour = "grey92", linewidth = 0.3),

@@ -14,7 +14,11 @@ class falling in each frequency band; bands are ordered from rarest (left) to mo
 (right). Variants not observed in gnomAD are shown separately in grey rather than as a
 frequency, since absence from a population reference is evidence of rarity rather than a
 missing measurement. Allele frequencies are gnomAD exomes r2.1, obtained from the Ensembl VEP
-GRCh37 cache, which does not provide gnomAD genome frequencies. Across all three classes the
+GRCh37 cache. Exome frequencies are the appropriate reference here because every analysed
+variant lies in coding sequence or a splice site, and the gnomAD exome cohort (~125,700
+individuals) is roughly eightfold larger than the genome cohort (~15,700). gnomAD genome
+frequencies were requested but returned empty by this cache for every variant, so "absent
+from gnomAD" should be read as not observed among the exome cohort. Across all three classes the
 large majority of variants are absent from gnomAD or present below 0.01%: 91.6% for Direct
 Repair, 97.2% for Nonsense Rescue and 92.4% for Missense Optimization. Seventeen Direct Repair
 variants (0.7%) exceed a frequency of 1%, of which two exceed 5% - the threshold at which
@@ -41,6 +45,8 @@ written alongside the figure as `Figure_gnomAD_AF_distribution_data.csv`.
 Two sentences would belong in the Methods, since neither is visible from the panel:
 
   * Allele frequencies were taken from the gnomAD exome fields of the Ensembl VEP annotation
-    (r2.1, GRCh37 cache). Genome frequencies are not available in that cache.
+    (r2.1, GRCh37 cache). The cache declares gnomAD genome fields but returned no values for
+    them: of 199,877 annotation rows inspected, 21,461 carried an exome frequency and none a
+    genome frequency. Exomes are in any case the better-powered reference for coding variants.
   * Variants absent from gnomAD were retained and analysed as a distinct category; allele
     frequency was not used to filter any variant set.
