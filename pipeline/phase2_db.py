@@ -183,7 +183,11 @@ logging.info("✓ Schema loaded successfully")
 # Import Hasura metadata (run right after applying schema above)
 
 
-metadata_path = os.path.join(DB_DIR, "hasura_metadata.json")
+# Tracked source, like the schema beside it. Reading it from DB_DIR meant a run
+# pointed at a scratch stack picked up whatever stale copy happened to sit in that
+# directory - which is how the bystander_codons relationship went missing and took
+# three published numbers with it.
+metadata_path = PROJECT_ROOT / "db" / "hasura_metadata.json"
 with open(metadata_path) as f:
     metadata = json.load(f)
 

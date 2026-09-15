@@ -3,9 +3,10 @@
 Turns the raw download into `varicarta_vepped.txt`, the single input every later stage
 reads. Four things happen, in order:
 
-  1. **Normalise and deduplicate.** 525,687 catalogued rows collapse to 329,411 unique
-     (chr, pos, ref, alt) variants. Three rows where REF equals ALT are dropped: they
-     describe no change.
+  1. **Deduplicate and keep standard alleles.** 525,687 catalogued rows collapse to unique
+     (chr, pos, ref, alt) variants. Rows whose REF equals ALT describe no change and are
+     dropped, as are rows whose alleles are not plain [ATCG] - VariCarta writes some
+     alternates as `ref/N` or `I:NNN`, and those are counted and excluded, not repaired.
   2. **Validate against hg19.** Each REF is checked against the reference base at that
      coordinate. 45 variants (0.01%) disagree and are removed rather than corrected -
      a REF that does not match the genome means the row's coordinates cannot be trusted.
@@ -39,26 +40,20 @@ df_varicarta_unique = df_varicarta.drop_duplicates(subset=_key_cols)
 logging.info(f"Total variants in Varicarta: {df_varicarta.shape[0]}")
 logging.info(f"Unique variants by (#CHROM, POS, REF, ALT): {df_varicarta_unique.shape[0]} (dropped {df_varicarta.shape[0] - df_varicarta_unique.shape[0]} duplicates)")
 
-# ── Normalize ALT field in df_varicarta (in place) ──
-# Two non-standard ALT formats observed:
-#   1. 'ref/N' or 'N/ref'  → keep only the alternate nucleotide N
-#   2. 'I:NNN'             → strip the 'I:' prefix (insertion notation)
+# ── Non-standard ALT notations: counted, deliberately NOT repaired ──
+# VariCarta records some alternate alleles in forms this pipeline does not accept:
+#   1. 'ref/N' or 'N/ref'  - the alternate nucleotide written beside the reference
+#   2. 'I:NNN'             - insertion notation
+# Both contain characters outside [ATCG], so the standard-allele filter below drops
+# them. Repairing them would admit 84 variants the published analysis does not
+# contain, moving every funnel denominator (329,279 -> 329,363, 9,962 -> 10,043,
+# 2,421 -> 2,439). The published database was built before any such repair existed,
+# so the repair is deliberately absent and the affected rows are counted instead.
+# See docs/decisions/0003-non-standard-alt-notation.md.
 _slash_mask = df_varicarta_unique["ALT"].str.contains("/", na=False)
 _insertion_mask = df_varicarta_unique["ALT"].str.startswith("I:", na=False)
-logging.info(f"Variants with '/' in ALT (form 'ref/N' or 'N/ref'): {int(_slash_mask.sum())}")
-logging.info(f"Variants with 'I:' prefix in ALT: {int(_insertion_mask.sum())}")
-
-def _strip_slash_alt(row):
-    parts = row["ALT"].split("/")
-    if len(parts) == 2:
-        if parts[0] == row["REF"]:
-            return parts[1]
-        if parts[1] == row["REF"]:
-            return parts[0]
-    return row["ALT"]
-
-df_varicarta_unique.loc[_slash_mask, "ALT"] = df_varicarta_unique.loc[_slash_mask].apply(_strip_slash_alt, axis=1)
-df_varicarta_unique.loc[_insertion_mask, "ALT"] = df_varicarta_unique.loc[_insertion_mask, "ALT"].str.slice(2)
+logging.info(f"Excluded, ALT written as 'ref/N' or 'N/ref': {int(_slash_mask.sum())}")
+logging.info(f"Excluded, ALT written with an 'I:' prefix:   {int(_insertion_mask.sum())}")
 
 # Duplicate counts: (#CHROM, POS, REF, ALT)
 _dup_mask = df_varicarta_unique.duplicated(subset=_key_cols, keep=False)
@@ -66,7 +61,7 @@ logging.info(f"  ↳ of the '/' rows, duplicates by {_key_cols}: {int((_slash_ma
 logging.info(f"  ↳ of the 'I:' rows, duplicates by {_key_cols}: {int((_insertion_mask & _dup_mask).sum())}")
 
 df_varicarta_unique = df_varicarta_unique.drop_duplicates(subset=_key_cols)
-logging.info(f"Unique variants after ALT normalization: {df_varicarta_unique.shape[0]} (dropped {df_varicarta_unique.shape[0] - df_varicarta_unique.shape[0]} duplicates)")
+logging.info(f"Unique variants: {df_varicarta_unique.shape[0]}")
 
 
 
