@@ -127,16 +127,11 @@ the VEP output; `--before 3` removes only guides and bystanders.
 versions of all 287 conda and 14 pip packages used for the published run. Database credentials
 are read from a local `.env` — see `.env.example`. No credential is committed.
 
-## A note on two conventions
+## A note on transcript choice
 
-Two choices in this analysis are conventions rather than measurements, and both are documented
-where they are made rather than buried:
-
-- **The SIFT boundary.** Scores are reported to two decimal places, so a stored `0.05` is any
-  true value in `[0.045, 0.055)`, and 750 variants sit exactly on it. The published analysis
-  treats `<0.05` as deleterious, which is the convention the Methods state.
-- **Transcript choice.** Every published number is conditioned on VEP's `--pick` transcript.
-  The alternative — reporting all transcripts — is a different analysis, not a correction.
+Every published number is conditioned on VEP's `--pick` transcript: one transcript per variant,
+chosen by VEP. Reporting all transcripts is a different analysis, not a correction. This is a
+convention rather than a measurement, so it is stated here rather than left implicit.
 
 ## Authors
 
