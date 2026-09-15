@@ -561,7 +561,9 @@ query DistinctSubjects_AnyEditingClass {
 # frequency. Reported as a distribution because absence from gnomAD is a category, not
 # a low number - 43.7% of the Direct Repair set has no allele_frequency row, and a
 # filter such as `gnomade_af < 0.01` silently drops every one of them.
-# gnomade_af is gnomAD exomes r2.1; the GRCh37 cache returns no genome frequencies.
+# gnomade_af is gnomAD exomes r2.1; the GRCh37 cache declares gnomADg fields but returns
+# them empty for every variant. Bands are closed below and open above (_gte / _lt), so a
+# variant at exactly 0.001 counts in AF_1e3_to_1e2, not AF_1e4_to_1e3.
 
 query GnomadAF_DirectRepair {
   # Allele-frequency bands over the 2,421 directly correctable G>A variants.

@@ -11,7 +11,8 @@ correctable G>A variants (Direct Repair, n = 2,421), non-G>A nonsense variants a
 stop-codon recoding (Nonsense Rescue, n = 894), and non-G>A missense variants amenable to
 alternative codon editing (Missense Optimization, n = 158). Bars show the proportion of each
 class falling in each frequency band; bands are ordered from rarest (left) to most common
-(right). Variants not observed in gnomAD are shown separately in grey rather than as a
+(right) and are closed below and open above, so a variant at exactly 0.001 falls in the
+0.001 ≤ AF < 0.01 band. Variants not observed in gnomAD are shown separately in grey rather than as a
 frequency, since absence from a population reference is evidence of rarity rather than a
 missing measurement. Allele frequencies are gnomAD exomes r2.1, obtained from the Ensembl VEP
 GRCh37 cache. Exome frequencies are the appropriate reference here because every analysed
@@ -29,7 +30,7 @@ amino acid-level class contains a variant above 1%.
 
 ## Numbers quoted above, for checking
 
-| Class | n | Absent | < 0.0001 | 0.0001-0.001 | 0.001-0.01 | >= 0.01 | absent or <1e-4 |
+| Class | n | Absent | AF < 0.0001 | 0.0001 ≤ AF < 0.001 | 0.001 ≤ AF < 0.01 | AF ≥ 0.01 | absent or AF < 0.0001 |
 |---|---|---|---|---|---|---|---|
 | Direct Repair | 2,421 | 1,058 | 1,160 | 144 | 42 | 17 | **91.6%** |
 | Nonsense Rescue | 894 | 669 | 200 | 20 | 5 | 0 | **97.2%** |

@@ -28,20 +28,29 @@ d <- read.csv(asd_out("Intermediate_tables", "gnomad_af_by_class.csv"),
 # Collapse the two highest bands: >=1% is the threshold that carries meaning
 # (ACMG BS1), and separating 1-5% from >=5% produced slivers too small to read.
 # The >=5% count is called out in the caption instead.
+BAND_LABEL <- c(
+  "Absent from gnomAD" = "Absent from gnomAD",
+  "< 0.0001"           = "AF < 0.0001",
+  "0.0001 - 0.001"     = "0.0001 \u2264 AF < 0.001",
+  "0.001 - 0.01"       = "0.001 \u2264 AF < 0.01",
+  "0.01 - 0.05"        = "AF \u2265 0.01",
+  ">= 0.05"            = "AF \u2265 0.01"
+)
+
 d <- d %>%
-  mutate(band = ifelse(band %in% c("0.01 - 0.05", ">= 0.05"), ">= 0.01", band)) %>%
+  mutate(band = unname(BAND_LABEL[band])) %>%
   group_by(editing_class, band, total) %>%
   summarise(n = sum(n), .groups = "drop") %>%
   mutate(pct = 100 * n / total)
 
-BANDS <- c("Absent from gnomAD", "< 0.0001", "0.0001 - 0.001", "0.001 - 0.01", ">= 0.01")
-af_fill <- c(
-  "Absent from gnomAD" = "#9E9E9E",
-  "< 0.0001"           = "#BDD7E7",
-  "0.0001 - 0.001"     = "#6BAED6",
-  "0.001 - 0.01"       = "#3182BD",
-  ">= 0.01"            = "#08519C"
-)
+# Each band is closed below and open above, matching the _gte/_lt pairs in
+# queries.txt, so the labels state it rather than leaving it to be inferred.
+BANDS <- c("Absent from gnomAD",
+           "AF < 0.0001",
+           "0.0001 \u2264 AF < 0.001",
+           "0.001 \u2264 AF < 0.01",
+           "AF \u2265 0.01")
+af_fill <- setNames(c("#9E9E9E", "#BDD7E7", "#6BAED6", "#3182BD", "#08519C"), BANDS)
 CLASS_ORDER <- c("Missense Optimization", "Nonsense Rescue", "Direct Repair")
 
 d <- d %>%
@@ -56,7 +65,7 @@ p <- ggplot(d, aes(x = pct, y = editing_class, fill = band)) +
            position = position_stack(reverse = TRUE)) +
   geom_text(data = lab, aes(label = sprintf("%.0f%%", pct)),
             position = position_stack(vjust = 0.5, reverse = TRUE),
-            colour = ifelse(lab$band %in% c("0.001 - 0.01", ">= 0.01"), "white", "grey15"),
+            colour = ifelse(lab$band %in% BANDS[4:5], "white", "grey15"),
             size = 3.1, fontface = "bold") +
   scale_fill_manual(values = af_fill, name = NULL,
                     guide = guide_legend(nrow = 1)) +
