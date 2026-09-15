@@ -59,7 +59,7 @@ p <- ggplot(d, aes(x = pct, y = editing_class, fill = band)) +
             colour = ifelse(lab$band %in% c("0.001 - 0.01", ">= 0.01"), "white", "grey15"),
             size = 3.1, fontface = "bold") +
   scale_fill_manual(values = af_fill, name = "gnomAD exome allele frequency",
-                    guide = guide_legend(nrow = 1)) +
+                    guide = guide_legend(nrow = 1, title.position = "top", title.hjust = 0)) +
   scale_x_continuous(labels = function(x) paste0(x, "%"),
                      expand = expansion(mult = c(0, 0.02))) +
   scale_y_discrete(labels = function(v) {
@@ -67,15 +67,8 @@ p <- ggplot(d, aes(x = pct, y = editing_class, fill = band)) +
     paste0(v, "\n(n = ", trimws(format(tot, big.mark = ",")), ")")
   }) +
   labs(
-    title = "ADAR-targetable variants are overwhelmingly rare or absent from gnomAD",
-    subtitle = paste0("91.6% of directly correctable variants are absent from gnomAD or below 0.01%.\n",
-                      "Neither amino acid-level class contains a single variant above 1%."),
-    x = "Share of variants in the class", y = NULL,
-    caption = paste0(
-      "gnomAD exomes r2.1 via Ensembl VEP (GRCh37 cache; gnomAD genomes are unavailable there).\n",
-      "\"Absent from gnomAD\" means not observed - evidence of rarity, not a missing value.\n",
-      "Of the 17 Direct Repair variants at >=1%, two exceed 5% (ACMG BA1, standalone benign evidence)."
-    )
+    title = "gnomAD allele frequency of variants amenable to ADAR-mediated editing",
+    x = "Share of variants in the class", y = NULL
   ) +
   theme_publication(base_size = 12) +
   theme(
@@ -85,19 +78,18 @@ p <- ggplot(d, aes(x = pct, y = editing_class, fill = band)) +
     panel.grid.major.y = element_blank(),
     panel.grid.major.x = element_line(colour = "grey92", linewidth = 0.3),
     axis.text.y        = element_text(face = "bold", lineheight = 1.05),
-    plot.title         = element_text(face = "bold", size = 13.5),
-    plot.subtitle      = element_text(colour = "grey30", size = 10, lineheight = 1.15),
-    plot.caption       = element_text(colour = "grey45", size = 7.6, hjust = 0, lineheight = 1.25),
-    plot.caption.position = "plot"
+    plot.title         = element_text(face = "bold", size = 12.5, hjust = 0),
+    legend.margin      = margin(b = 4),
+    axis.title.x       = element_text(size = 10, colour = "grey25")
   )
 
 OUT <- asd_out_dir("Figures")
 ggsave(file.path(OUT, "Figure_gnomAD_AF_distribution.png"), p,
-       width = 9.5, height = 4.6, dpi = 300, bg = "white")
+       width = 9.5, height = 4.2, dpi = 300, bg = "white")
 # cairo_pdf, as the rest of the suite uses: the default pdf device cannot
 # embed the bold face this theme asks for and errors with "invalid font type".
 ggsave(file.path(OUT, "Figure_gnomAD_AF_distribution.pdf"), p,
-       width = 9.5, height = 4.6, bg = "white", device = cairo_pdf)
+       width = 9.5, height = 4.2, bg = "white", device = cairo_pdf)
 write.csv(d %>% arrange(editing_class, band) %>% select(editing_class, band, n, total, pct),
           file.path(OUT, "Figure_gnomAD_AF_distribution_data.csv"), row.names = FALSE)
 
