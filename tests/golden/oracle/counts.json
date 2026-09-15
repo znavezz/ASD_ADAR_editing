@@ -1,6 +1,6 @@
 {
   "hasura_url": "http://127.0.0.1:8789/v1/graphql",
-  "queries_sha256": "bd38f2dba1f395bcf58578ffd39b983e92c18716b5141d45e10cf4c3f7336927",
+  "queries_sha256": "b016fc84b33fd07a174e067f180db0048a42e9335fcf4910b909917f5549e7ac",
   "results": {
     "DistinctSubjects_AnyEditingClass": {
       "counts": {
@@ -9,6 +9,72 @@
       "expect": {},
       "line": 512,
       "query_sha1": "421ffae42a4e2a9df35e825fc7981e638cc668b0"
+    },
+    "GnomadAF_DirectRepair": {
+      "counts": {
+        "AF_1e2_to_5e2": 15,
+        "AF_1e3_to_1e2": 42,
+        "AF_1e4_to_1e3": 144,
+        "AF_5e2_plus": 2,
+        "AF_below_1e4": 1160,
+        "Absent": 1058,
+        "Total": 2421
+      },
+      "expect": {
+        "AF_1e2_to_5e2": 15,
+        "AF_1e3_to_1e2": 42,
+        "AF_1e4_to_1e3": 144,
+        "AF_5e2_plus": 2,
+        "AF_below_1e4": 1160,
+        "Absent": 1058,
+        "Total": 2421
+      },
+      "line": 566,
+      "query_sha1": "4c4fd50ae20efe8c5a9149cdff94d331c2550b23"
+    },
+    "GnomadAF_MissenseOptimization": {
+      "counts": {
+        "AF_1e2_to_5e2": 0,
+        "AF_1e3_to_1e2": 4,
+        "AF_1e4_to_1e3": 8,
+        "AF_5e2_plus": 0,
+        "AF_below_1e4": 53,
+        "Absent": 93,
+        "Total": 158
+      },
+      "expect": {
+        "AF_1e2_to_5e2": 0,
+        "AF_1e3_to_1e2": 4,
+        "AF_1e4_to_1e3": 8,
+        "AF_5e2_plus": 0,
+        "AF_below_1e4": 53,
+        "Absent": 93,
+        "Total": 158
+      },
+      "line": 630,
+      "query_sha1": "9047d56e7ceba0da6a50b8b70df2266c33495226"
+    },
+    "GnomadAF_NonsenseRescue": {
+      "counts": {
+        "AF_1e2_to_5e2": 0,
+        "AF_1e3_to_1e2": 5,
+        "AF_1e4_to_1e3": 20,
+        "AF_5e2_plus": 0,
+        "AF_below_1e4": 200,
+        "Absent": 669,
+        "Total": 894
+      },
+      "expect": {
+        "AF_1e2_to_5e2": 0,
+        "AF_1e3_to_1e2": 5,
+        "AF_1e4_to_1e3": 20,
+        "AF_5e2_plus": 0,
+        "AF_below_1e4": 200,
+        "Absent": 669,
+        "Total": 894
+      },
+      "line": 598,
+      "query_sha1": "0055b4e851a9aaecf547d3d69320feebd1c719f5"
     },
     "ImproveAnalysis": {
       "counts": {

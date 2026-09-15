@@ -554,3 +554,107 @@ query DistinctSubjects_AnyEditingClass {
     aggregate { count }
   }
 }
+
+
+# [SUPPORTING] gnomAD exome allele-frequency distribution behind the AF figure
+# (figures/Figure_gnomAD/). Not a filter: no published count is conditioned on allele
+# frequency. Reported as a distribution because absence from gnomAD is a category, not
+# a low number - 43.7% of the Direct Repair set has no allele_frequency row, and a
+# filter such as `gnomade_af < 0.01` silently drops every one of them.
+# gnomade_af is gnomAD exomes r2.1; the GRCh37 cache returns no genome frequencies.
+
+query GnomadAF_DirectRepair {
+  # Allele-frequency bands over the 2,421 directly correctable G>A variants.
+  # expect Total: 2421
+  # expect Absent: 1058
+  # expect AF_below_1e4: 1160
+  # expect AF_1e4_to_1e3: 144
+  # expect AF_1e3_to_1e2: 42
+  # expect AF_1e2_to_5e2: 15
+  # expect AF_5e2_plus: 2
+  Total: variants_aggregate(where: {class: {_eq: "SNV"}, _or: [{ref: {_eq: "G"}, alt: {_eq: "A"}, gene: {strand: {_eq: "+"}}}, {ref: {_eq: "C"}, alt: {_eq: "T"}, gene: {strand: {_eq: "-"}}}], variants_features: {feature: {biotype: {name: {_eq: "protein_coding"}}}}, gene: {genes_quantitative_scores: {quantitative_score: {name: {_eq: "SFARI Gene Score"}}}}, variants_consequences: {consequence: {name: {_in: ["StopGained","Missense","Splice"]}}}}) {
+    aggregate { count }
+  }
+  Absent: variants_aggregate(where: {_and: [{class: {_eq: "SNV"}, _or: [{ref: {_eq: "G"}, alt: {_eq: "A"}, gene: {strand: {_eq: "+"}}}, {ref: {_eq: "C"}, alt: {_eq: "T"}, gene: {strand: {_eq: "-"}}}], variants_features: {feature: {biotype: {name: {_eq: "protein_coding"}}}}, gene: {genes_quantitative_scores: {quantitative_score: {name: {_eq: "SFARI Gene Score"}}}}, variants_consequences: {consequence: {name: {_in: ["StopGained","Missense","Splice"]}}}}, {_not: {allele_frequency: {gnomade_af: {_is_null: false}}}}]}) {
+    aggregate { count }
+  }
+  AF_below_1e4: variants_aggregate(where: {_and: [{class: {_eq: "SNV"}, _or: [{ref: {_eq: "G"}, alt: {_eq: "A"}, gene: {strand: {_eq: "+"}}}, {ref: {_eq: "C"}, alt: {_eq: "T"}, gene: {strand: {_eq: "-"}}}], variants_features: {feature: {biotype: {name: {_eq: "protein_coding"}}}}, gene: {genes_quantitative_scores: {quantitative_score: {name: {_eq: "SFARI Gene Score"}}}}, variants_consequences: {consequence: {name: {_in: ["StopGained","Missense","Splice"]}}}}, {allele_frequency: {gnomade_af: {_lt: 0.0001}}}]}) {
+    aggregate { count }
+  }
+  AF_1e4_to_1e3: variants_aggregate(where: {_and: [{class: {_eq: "SNV"}, _or: [{ref: {_eq: "G"}, alt: {_eq: "A"}, gene: {strand: {_eq: "+"}}}, {ref: {_eq: "C"}, alt: {_eq: "T"}, gene: {strand: {_eq: "-"}}}], variants_features: {feature: {biotype: {name: {_eq: "protein_coding"}}}}, gene: {genes_quantitative_scores: {quantitative_score: {name: {_eq: "SFARI Gene Score"}}}}, variants_consequences: {consequence: {name: {_in: ["StopGained","Missense","Splice"]}}}}, {allele_frequency: {gnomade_af: {_gte: 0.0001, _lt: 0.001}}}]}) {
+    aggregate { count }
+  }
+  AF_1e3_to_1e2: variants_aggregate(where: {_and: [{class: {_eq: "SNV"}, _or: [{ref: {_eq: "G"}, alt: {_eq: "A"}, gene: {strand: {_eq: "+"}}}, {ref: {_eq: "C"}, alt: {_eq: "T"}, gene: {strand: {_eq: "-"}}}], variants_features: {feature: {biotype: {name: {_eq: "protein_coding"}}}}, gene: {genes_quantitative_scores: {quantitative_score: {name: {_eq: "SFARI Gene Score"}}}}, variants_consequences: {consequence: {name: {_in: ["StopGained","Missense","Splice"]}}}}, {allele_frequency: {gnomade_af: {_gte: 0.001, _lt: 0.01}}}]}) {
+    aggregate { count }
+  }
+  AF_1e2_to_5e2: variants_aggregate(where: {_and: [{class: {_eq: "SNV"}, _or: [{ref: {_eq: "G"}, alt: {_eq: "A"}, gene: {strand: {_eq: "+"}}}, {ref: {_eq: "C"}, alt: {_eq: "T"}, gene: {strand: {_eq: "-"}}}], variants_features: {feature: {biotype: {name: {_eq: "protein_coding"}}}}, gene: {genes_quantitative_scores: {quantitative_score: {name: {_eq: "SFARI Gene Score"}}}}, variants_consequences: {consequence: {name: {_in: ["StopGained","Missense","Splice"]}}}}, {allele_frequency: {gnomade_af: {_gte: 0.01, _lt: 0.05}}}]}) {
+    aggregate { count }
+  }
+  AF_5e2_plus: variants_aggregate(where: {_and: [{class: {_eq: "SNV"}, _or: [{ref: {_eq: "G"}, alt: {_eq: "A"}, gene: {strand: {_eq: "+"}}}, {ref: {_eq: "C"}, alt: {_eq: "T"}, gene: {strand: {_eq: "-"}}}], variants_features: {feature: {biotype: {name: {_eq: "protein_coding"}}}}, gene: {genes_quantitative_scores: {quantitative_score: {name: {_eq: "SFARI Gene Score"}}}}, variants_consequences: {consequence: {name: {_in: ["StopGained","Missense","Splice"]}}}}, {allele_frequency: {gnomade_af: {_gte: 0.05}}}]}) {
+    aggregate { count }
+  }
+}
+
+query GnomadAF_NonsenseRescue {
+  # Allele-frequency bands over the 894 NMD-predicted non-G>A nonsense variants.
+  # expect Total: 894
+  # expect Absent: 669
+  # expect AF_below_1e4: 200
+  # expect AF_1e4_to_1e3: 20
+  # expect AF_1e3_to_1e2: 5
+  # expect AF_1e2_to_5e2: 0
+  # expect AF_5e2_plus: 0
+  Total: variants_aggregate(where: {class: {_eq: "SNV"}, nmd_escaping_variant: {_eq: false}, _not: {_or: [{ref: {_eq: "G"}, alt: {_eq: "A"}, gene: {strand: {_eq: "+"}}}, {ref: {_eq: "C"}, alt: {_eq: "T"}, gene: {strand: {_eq: "-"}}}]}, variants_features: {feature: {biotype: {name: {_eq: "protein_coding"}}}}, gene: {genes_quantitative_scores: {quantitative_score: {name: {_eq: "SFARI Gene Score"}}}}, variants_consequences: {consequence: {name: {_eq: "StopGained"}}}}) {
+    aggregate { count }
+  }
+  Absent: variants_aggregate(where: {_and: [{class: {_eq: "SNV"}, nmd_escaping_variant: {_eq: false}, _not: {_or: [{ref: {_eq: "G"}, alt: {_eq: "A"}, gene: {strand: {_eq: "+"}}}, {ref: {_eq: "C"}, alt: {_eq: "T"}, gene: {strand: {_eq: "-"}}}]}, variants_features: {feature: {biotype: {name: {_eq: "protein_coding"}}}}, gene: {genes_quantitative_scores: {quantitative_score: {name: {_eq: "SFARI Gene Score"}}}}, variants_consequences: {consequence: {name: {_eq: "StopGained"}}}}, {_not: {allele_frequency: {gnomade_af: {_is_null: false}}}}]}) {
+    aggregate { count }
+  }
+  AF_below_1e4: variants_aggregate(where: {_and: [{class: {_eq: "SNV"}, nmd_escaping_variant: {_eq: false}, _not: {_or: [{ref: {_eq: "G"}, alt: {_eq: "A"}, gene: {strand: {_eq: "+"}}}, {ref: {_eq: "C"}, alt: {_eq: "T"}, gene: {strand: {_eq: "-"}}}]}, variants_features: {feature: {biotype: {name: {_eq: "protein_coding"}}}}, gene: {genes_quantitative_scores: {quantitative_score: {name: {_eq: "SFARI Gene Score"}}}}, variants_consequences: {consequence: {name: {_eq: "StopGained"}}}}, {allele_frequency: {gnomade_af: {_lt: 0.0001}}}]}) {
+    aggregate { count }
+  }
+  AF_1e4_to_1e3: variants_aggregate(where: {_and: [{class: {_eq: "SNV"}, nmd_escaping_variant: {_eq: false}, _not: {_or: [{ref: {_eq: "G"}, alt: {_eq: "A"}, gene: {strand: {_eq: "+"}}}, {ref: {_eq: "C"}, alt: {_eq: "T"}, gene: {strand: {_eq: "-"}}}]}, variants_features: {feature: {biotype: {name: {_eq: "protein_coding"}}}}, gene: {genes_quantitative_scores: {quantitative_score: {name: {_eq: "SFARI Gene Score"}}}}, variants_consequences: {consequence: {name: {_eq: "StopGained"}}}}, {allele_frequency: {gnomade_af: {_gte: 0.0001, _lt: 0.001}}}]}) {
+    aggregate { count }
+  }
+  AF_1e3_to_1e2: variants_aggregate(where: {_and: [{class: {_eq: "SNV"}, nmd_escaping_variant: {_eq: false}, _not: {_or: [{ref: {_eq: "G"}, alt: {_eq: "A"}, gene: {strand: {_eq: "+"}}}, {ref: {_eq: "C"}, alt: {_eq: "T"}, gene: {strand: {_eq: "-"}}}]}, variants_features: {feature: {biotype: {name: {_eq: "protein_coding"}}}}, gene: {genes_quantitative_scores: {quantitative_score: {name: {_eq: "SFARI Gene Score"}}}}, variants_consequences: {consequence: {name: {_eq: "StopGained"}}}}, {allele_frequency: {gnomade_af: {_gte: 0.001, _lt: 0.01}}}]}) {
+    aggregate { count }
+  }
+  AF_1e2_to_5e2: variants_aggregate(where: {_and: [{class: {_eq: "SNV"}, nmd_escaping_variant: {_eq: false}, _not: {_or: [{ref: {_eq: "G"}, alt: {_eq: "A"}, gene: {strand: {_eq: "+"}}}, {ref: {_eq: "C"}, alt: {_eq: "T"}, gene: {strand: {_eq: "-"}}}]}, variants_features: {feature: {biotype: {name: {_eq: "protein_coding"}}}}, gene: {genes_quantitative_scores: {quantitative_score: {name: {_eq: "SFARI Gene Score"}}}}, variants_consequences: {consequence: {name: {_eq: "StopGained"}}}}, {allele_frequency: {gnomade_af: {_gte: 0.01, _lt: 0.05}}}]}) {
+    aggregate { count }
+  }
+  AF_5e2_plus: variants_aggregate(where: {_and: [{class: {_eq: "SNV"}, nmd_escaping_variant: {_eq: false}, _not: {_or: [{ref: {_eq: "G"}, alt: {_eq: "A"}, gene: {strand: {_eq: "+"}}}, {ref: {_eq: "C"}, alt: {_eq: "T"}, gene: {strand: {_eq: "-"}}}]}, variants_features: {feature: {biotype: {name: {_eq: "protein_coding"}}}}, gene: {genes_quantitative_scores: {quantitative_score: {name: {_eq: "SFARI Gene Score"}}}}, variants_consequences: {consequence: {name: {_eq: "StopGained"}}}}, {allele_frequency: {gnomade_af: {_gte: 0.05}}}]}) {
+    aggregate { count }
+  }
+}
+
+query GnomadAF_MissenseOptimization {
+  # Allele-frequency bands over the 158 improvable missense variants.
+  # expect Total: 158
+  # expect Absent: 93
+  # expect AF_below_1e4: 53
+  # expect AF_1e4_to_1e3: 8
+  # expect AF_1e3_to_1e2: 4
+  # expect AF_1e2_to_5e2: 0
+  # expect AF_5e2_plus: 0
+  Total: variants_aggregate(where: {class: {_eq: "SNV"}, _not: {_or: [{ref: {_eq: "G"}, alt: {_eq: "A"}, gene: {strand: {_eq: "+"}}}, {ref: {_eq: "C"}, alt: {_eq: "T"}, gene: {strand: {_eq: "-"}}}]}, variants_features: {feature: {biotype: {name: {_eq: "protein_coding"}}}}, gene: {genes_quantitative_scores: {quantitative_score: {name: {_eq: "SFARI Gene Score"}}}}, variants_consequences: {consequence: {name: {_eq: "Missense"}}}, variants_quantitative_scores: {quantitative_score: {name: {_eq: "SIFT"}, value: {_lt: 0.05}}}, neighbor_edits: {is_best: {_eq: true}, improves: {_eq: true}}}) {
+    aggregate { count }
+  }
+  Absent: variants_aggregate(where: {_and: [{class: {_eq: "SNV"}, _not: {_or: [{ref: {_eq: "G"}, alt: {_eq: "A"}, gene: {strand: {_eq: "+"}}}, {ref: {_eq: "C"}, alt: {_eq: "T"}, gene: {strand: {_eq: "-"}}}]}, variants_features: {feature: {biotype: {name: {_eq: "protein_coding"}}}}, gene: {genes_quantitative_scores: {quantitative_score: {name: {_eq: "SFARI Gene Score"}}}}, variants_consequences: {consequence: {name: {_eq: "Missense"}}}, variants_quantitative_scores: {quantitative_score: {name: {_eq: "SIFT"}, value: {_lt: 0.05}}}, neighbor_edits: {is_best: {_eq: true}, improves: {_eq: true}}}, {_not: {allele_frequency: {gnomade_af: {_is_null: false}}}}]}) {
+    aggregate { count }
+  }
+  AF_below_1e4: variants_aggregate(where: {_and: [{class: {_eq: "SNV"}, _not: {_or: [{ref: {_eq: "G"}, alt: {_eq: "A"}, gene: {strand: {_eq: "+"}}}, {ref: {_eq: "C"}, alt: {_eq: "T"}, gene: {strand: {_eq: "-"}}}]}, variants_features: {feature: {biotype: {name: {_eq: "protein_coding"}}}}, gene: {genes_quantitative_scores: {quantitative_score: {name: {_eq: "SFARI Gene Score"}}}}, variants_consequences: {consequence: {name: {_eq: "Missense"}}}, variants_quantitative_scores: {quantitative_score: {name: {_eq: "SIFT"}, value: {_lt: 0.05}}}, neighbor_edits: {is_best: {_eq: true}, improves: {_eq: true}}}, {allele_frequency: {gnomade_af: {_lt: 0.0001}}}]}) {
+    aggregate { count }
+  }
+  AF_1e4_to_1e3: variants_aggregate(where: {_and: [{class: {_eq: "SNV"}, _not: {_or: [{ref: {_eq: "G"}, alt: {_eq: "A"}, gene: {strand: {_eq: "+"}}}, {ref: {_eq: "C"}, alt: {_eq: "T"}, gene: {strand: {_eq: "-"}}}]}, variants_features: {feature: {biotype: {name: {_eq: "protein_coding"}}}}, gene: {genes_quantitative_scores: {quantitative_score: {name: {_eq: "SFARI Gene Score"}}}}, variants_consequences: {consequence: {name: {_eq: "Missense"}}}, variants_quantitative_scores: {quantitative_score: {name: {_eq: "SIFT"}, value: {_lt: 0.05}}}, neighbor_edits: {is_best: {_eq: true}, improves: {_eq: true}}}, {allele_frequency: {gnomade_af: {_gte: 0.0001, _lt: 0.001}}}]}) {
+    aggregate { count }
+  }
+  AF_1e3_to_1e2: variants_aggregate(where: {_and: [{class: {_eq: "SNV"}, _not: {_or: [{ref: {_eq: "G"}, alt: {_eq: "A"}, gene: {strand: {_eq: "+"}}}, {ref: {_eq: "C"}, alt: {_eq: "T"}, gene: {strand: {_eq: "-"}}}]}, variants_features: {feature: {biotype: {name: {_eq: "protein_coding"}}}}, gene: {genes_quantitative_scores: {quantitative_score: {name: {_eq: "SFARI Gene Score"}}}}, variants_consequences: {consequence: {name: {_eq: "Missense"}}}, variants_quantitative_scores: {quantitative_score: {name: {_eq: "SIFT"}, value: {_lt: 0.05}}}, neighbor_edits: {is_best: {_eq: true}, improves: {_eq: true}}}, {allele_frequency: {gnomade_af: {_gte: 0.001, _lt: 0.01}}}]}) {
+    aggregate { count }
+  }
+  AF_1e2_to_5e2: variants_aggregate(where: {_and: [{class: {_eq: "SNV"}, _not: {_or: [{ref: {_eq: "G"}, alt: {_eq: "A"}, gene: {strand: {_eq: "+"}}}, {ref: {_eq: "C"}, alt: {_eq: "T"}, gene: {strand: {_eq: "-"}}}]}, variants_features: {feature: {biotype: {name: {_eq: "protein_coding"}}}}, gene: {genes_quantitative_scores: {quantitative_score: {name: {_eq: "SFARI Gene Score"}}}}, variants_consequences: {consequence: {name: {_eq: "Missense"}}}, variants_quantitative_scores: {quantitative_score: {name: {_eq: "SIFT"}, value: {_lt: 0.05}}}, neighbor_edits: {is_best: {_eq: true}, improves: {_eq: true}}}, {allele_frequency: {gnomade_af: {_gte: 0.01, _lt: 0.05}}}]}) {
+    aggregate { count }
+  }
+  AF_5e2_plus: variants_aggregate(where: {_and: [{class: {_eq: "SNV"}, _not: {_or: [{ref: {_eq: "G"}, alt: {_eq: "A"}, gene: {strand: {_eq: "+"}}}, {ref: {_eq: "C"}, alt: {_eq: "T"}, gene: {strand: {_eq: "-"}}}]}, variants_features: {feature: {biotype: {name: {_eq: "protein_coding"}}}}, gene: {genes_quantitative_scores: {quantitative_score: {name: {_eq: "SFARI Gene Score"}}}}, variants_consequences: {consequence: {name: {_eq: "Missense"}}}, variants_quantitative_scores: {quantitative_score: {name: {_eq: "SIFT"}, value: {_lt: 0.05}}}, neighbor_edits: {is_best: {_eq: true}, improves: {_eq: true}}}, {allele_frequency: {gnomade_af: {_gte: 0.05}}}]}) {
+    aggregate { count }
+  }
+}

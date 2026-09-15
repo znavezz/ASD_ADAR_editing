@@ -67,7 +67,7 @@ p <- ggplot(d, aes(x = pct, y = editing_class, fill = band)) +
     paste0(v, "\n(n = ", trimws(format(tot, big.mark = ",")), ")")
   }) +
   labs(
-    title = "gnomAD exome allele frequency of variants amenable to ADAR-mediated editing",
+    title = "gnomAD allele frequency of variants amenable to ADAR-mediated editing",
     x = "Share of variants in the class", y = NULL
   ) +
   theme_publication(base_size = 12) +
