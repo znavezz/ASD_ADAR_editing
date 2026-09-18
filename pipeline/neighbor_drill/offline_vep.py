@@ -76,7 +76,17 @@ def run_offline_vep(vcf_path, out_path, *, vep_cache, genome_fasta, work_dir, fo
         "-v", f"{vep_cache}:/data/vep",
         "-v", f"{work_dir}:/data/io",
         "-v", f"{genome_fasta.parent}:/data/fasta",
-        "ensemblorg/ensembl-vep", "vep",
+    # Pinned, deliberately. Invoked untagged this resolves to :latest, and on
+    # 2026-09-18 Docker pulled VEP 116 over the 113 image that produced the paper,
+    # after which every run failed with "No cache found for homo_sapiens, version
+    # 116" - the cache on disk is 113_GRCh37. An untagged image silently changes
+    # the annotation under a pipeline whose numbers are published.
+    # Pinned, deliberately. Invoked untagged this resolves to :latest, and on
+# 2026-09-18 Docker pulled VEP 116 over the 113 image that produced the paper,
+# after which every run failed with "No cache found for homo_sapiens, version
+# 116" - the cache on disk is 113_GRCh37. An untagged image silently changes
+# the annotation under a pipeline whose numbers are published.
+    os.environ.get("VEP_IMAGE", "ensemblorg/ensembl-vep:release_113.0"), "vep",
         "--offline", "--cache", "--dir_cache", "/data/vep",
         "--species", "homo_sapiens", "--assembly", assembly,
         "--fasta", f"/data/fasta/{genome_fasta.name}",

@@ -161,7 +161,12 @@ cmd = [
     "-v", f"{input_dir}:/data/input",
     "-v", f"{vep_output_dir}:/data/output",
     "-v", f"{fasta_host.resolve().parent}:/data/fasta",
-    "ensemblorg/ensembl-vep", "vep",
+# Pinned, deliberately. Invoked untagged this resolves to :latest, and on
+# 2026-09-18 Docker pulled VEP 116 over the 113 image that produced the paper,
+# after which every run failed with "No cache found for homo_sapiens, version
+# 116" - the cache on disk is 113_GRCh37. An untagged image silently changes
+# the annotation under a pipeline whose numbers are published.
+    os.environ.get("VEP_IMAGE", "ensemblorg/ensembl-vep:release_113.0"), "vep",
         "--offline",
         "--cache", "--dir_cache", "/data/vep",
         "--fork", str(forks),
