@@ -35,8 +35,9 @@ The analysis reads from a PostgreSQL database exposed through Hasura. With that 
 python scripts/verify_counts.py verify
 ```
 
-This re-runs all 16 published counts and fails loudly if any disagrees with the committed
-baseline. It never updates the baseline as a side effect; re-baselining is a separate,
+This re-runs every annotated count and fails loudly if any disagrees with the committed
+baseline: 18 values belonging to the numbers the manuscript reports, and 24 more that support
+them, across 15 operations. It never updates the baseline as a side effect; re-baselining is a separate,
 explicit command.
 
 The counts it checks are the paper's funnel and its three editing classes:
@@ -94,7 +95,7 @@ data directory (~2.4 GB).
 | Phase 1, preprocess + VEP annotation | **~5 min** |
 | Phase 2, database insertion | **~7.5 h** |
 | Phase 3, guides, bystanders and BLAT off-targets | not recorded; dominated by BLAT |
-| All 16 published counts (`verify_counts.py`) | seconds |
+| All annotated counts (`verify_counts.py`) | seconds |
 | All five figures (`figures/run_all_figures.R`) | ~10 min |
 
 Phase 2 is the long pole because every insert is a GraphQL mutation and CADD arrives from
