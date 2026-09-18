@@ -88,19 +88,28 @@ SIFT scores are fetched from the Ensembl REST API.
 **Disk for outputs**: about 3.5 GB, split between `Output/` (~900 MB) and the PostgreSQL
 data directory (~2.4 GB).
 
-**Measured wall-clock**, on 64 worker processes:
+**Measured wall-clock.** Times are from this repository's own run logs, on a shared machine;
+treat them as the right order of magnitude rather than a benchmark.
 
-| stage | time |
-|---|---|
-| Phase 1, preprocess + VEP annotation | **~5 min** |
-| Phase 2, database insertion | **~7.5 h** |
-| Phase 3, guides, bystanders and BLAT off-targets | not recorded; dominated by BLAT |
-| All annotated counts (`verify_counts.py`) | seconds |
-| All five figures (`figures/run_all_figures.R`) | ~10 min |
+| stage | time | measured |
+|---|---|---|
+| Phase 1, preprocess + VEP annotation | **~6 min** | 5.7 min, 2026-09-15 |
+| Phase 2, database insertion | **8-12 h** | 7.6 h for the published run; 11.6 h rebuilding it |
+| Phase 3, guides, bystanders and BLAT off-targets | dominated by BLAT | not yet recorded |
+| All annotated counts (`verify_counts.py`) | seconds | |
+| All five figures (`figures/run_all_figures.R`) | minutes | not timed precisely |
 
-Phase 2 is the long pole because every insert is a GraphQL mutation and CADD arrives from
-the network in batches. Budget a day for a full rebuild, and note that it is restartable:
-`--start_from db` and `--start_from guides` skip completed stages.
+Phase 2 is the long pole because every insert is a GraphQL mutation: one batch of 500
+variants fans out to roughly 33,000 rows across the child tables, at about 1,250 rows per
+second. The raw staging load, by contrast, uses `COPY` and finishes in seconds. CADD also
+arrives from the network in batches. Budget a day for a full rebuild.
+
+It is restartable, which matters: `--start_from db` and `--start_from guides` skip completed
+stages, and a run interrupted in phase 3 does not cost the phase 2 hours again.
+
+**Memory.** `BLAT_WORKERS` controls how many `blat` processes run at once in phase 3, and
+each loads the 3.0 GB genome into its own memory. The default of 64 needs ~190 GB and will be
+killed on a smaller or busier machine; lower it to suit what is free.
 
 ## Choosing which database a run writes to
 
