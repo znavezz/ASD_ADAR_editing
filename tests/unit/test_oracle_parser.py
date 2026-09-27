@@ -195,3 +195,47 @@ class TestQueryVerification:
     def test_no_expectation_never_fails(self):
         q = Query(name="Q", text="", line=1, expect={}, has_variables=False)
         assert q.check({"anything": 99}) == []
+
+
+class TestBystanderStats:
+    """Derived statistics read from a TableS1-shaped CSV. No Hasura, no database."""
+
+    COLUMN = ("bystanders(consequence; genomic_position (1-based); sift_score; "
+              "sift_prediction; cadd_phred; ref_codon; ref_aa; alt_codon; alt_aa)")
+
+    def _table(self, tmp_path, rows):
+        import csv
+        path = tmp_path / "TableS1.csv"
+        with path.open("w", newline="") as handle:
+            writer = csv.DictWriter(handle, ["variant_id", "bystanders_count", self.COLUMN])
+            writer.writeheader()
+            writer.writerows(rows)
+        return path
+
+    def test_counts_deleterious_by_cadd_threshold(self, tmp_path):
+        from scripts.verify_counts import bystander_stats
+        rows = [
+            {"variant_id": 1, "bystanders_count": 2,
+             "bystanders(consequence; genomic_position (1-based); sift_score; "
+             "sift_prediction; cadd_phred; ref_codon; ref_aa; alt_codon; alt_aa)":
+                 "(Missense;100;0;deleterious;26.1;GAC;Asp;GGC;Gly) | "
+                 "(Missense;104;0.4;tolerated;12.0;CAA;Gln;CGA;Arg)"},
+            {"variant_id": 2, "bystanders_count": 0,
+             "bystanders(consequence; genomic_position (1-based); sift_score; "
+             "sift_prediction; cadd_phred; ref_codon; ref_aa; alt_codon; alt_aa)": ""},
+        ]
+        stats = bystander_stats(self._table(tmp_path, rows))
+        assert stats["variants"] == 2
+        assert stats["adenosines_per_variant_mean"] == 1.0
+        assert stats["deleterious_per_variant_mean"] == 0.5
+        assert stats["variants_without_deleterious_bystander"] == 1
+
+    def test_exactly_at_the_threshold_counts_as_deleterious(self, tmp_path):
+        from scripts.verify_counts import bystander_stats
+        rows = [{"variant_id": 1, "bystanders_count": 1,
+                 "bystanders(consequence; genomic_position (1-based); sift_score; "
+                 "sift_prediction; cadd_phred; ref_codon; ref_aa; alt_codon; alt_aa)":
+                     "(Missense;100;0;deleterious;25.0;GAC;Asp;GGC;Gly)"}]
+        stats = bystander_stats(self._table(tmp_path, rows))
+        assert stats["deleterious_per_variant_mean"] == 1.0
+        assert stats["variants_without_deleterious_bystander"] == 0

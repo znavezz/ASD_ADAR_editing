@@ -415,6 +415,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Wrote {ARTIFACTS_FILE.relative_to(REPO_ROOT)}")
     else:
         problems.extend(_verify_against_baseline(results))
+        problems.extend(_verify_derived())
         if not args.skip_artifacts:
             problems.extend(_verify_artifacts())
 
@@ -445,6 +446,76 @@ def _verify_against_baseline(results: dict) -> list[str]:
                     f"{name}.{key}: baseline {expected:,}, now "
                     f"{'missing' if actual is None else format(actual, ',')}."
                 )
+    return problems
+
+
+# --------------------------------------------------------------------------------------
+# Statistics derived from a golden artifact
+# --------------------------------------------------------------------------------------
+
+#: Numbers the manuscript quotes that are computed from a CSV rather than returned by a
+#: query. Pinning the file's checksum (GOLDEN_ARTIFACTS, above) catches the file changing;
+#: this catches a statistic being mis-transcribed into the text, which a checksum cannot.
+#:
+#: The bystander column packs one record per adenosine as
+#: ``(consequence; position; sift; sift_prediction; cadd_phred; ...)``, so the CADD value
+#: is the fifth semicolon-separated field of each record.
+BYSTANDER_TABLE = "Output/TableS1_Fixable_variants.csv"
+BYSTANDER_COLUMN_PREFIX = "bystanders("
+DELETERIOUS_CADD = 25.0
+_BYSTANDER_CADD = re.compile(r";[^;()]*;[^;()]*;[^;()]*;\s*([0-9.]+)\s*;")
+
+#: name -> (expected value, tolerance). Tolerance covers rounding in the text only.
+DERIVED_STATS = {
+    "variants": (2421, 0),
+    "adenosines_per_variant_mean": (5.08, 0.005),
+    "adenosines_per_variant_sd": (2.30, 0.005),
+    "deleterious_per_variant_mean": (1.35, 0.005),
+    "deleterious_per_variant_sd": (1.47, 0.005),
+    "variants_without_deleterious_bystander": (891, 0),
+}
+
+
+def bystander_stats(path: Path) -> dict[str, float]:
+    """Per-variant adenosine and deleterious-bystander statistics from TableS1.
+
+    Population standard deviation, matching how the values are quoted.
+    """
+    import csv
+    import statistics
+
+    with path.open(newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    if not rows:
+        raise ValueError(f"{path} has no rows")
+    column = next(c for c in rows[0] if c.startswith(BYSTANDER_COLUMN_PREFIX))
+
+    totals, deleterious = [], []
+    for row in rows:
+        totals.append(int(row["bystanders_count"] or 0))
+        cadds = [float(v) for v in _BYSTANDER_CADD.findall(row[column] or "")]
+        deleterious.append(sum(1 for c in cadds if c >= DELETERIOUS_CADD))
+
+    return {
+        "variants": len(rows),
+        "adenosines_per_variant_mean": statistics.mean(totals),
+        "adenosines_per_variant_sd": statistics.pstdev(totals),
+        "deleterious_per_variant_mean": statistics.mean(deleterious),
+        "deleterious_per_variant_sd": statistics.pstdev(deleterious),
+        "variants_without_deleterious_bystander": sum(1 for d in deleterious if d == 0),
+    }
+
+
+def _verify_derived() -> list[str]:
+    path = REPO_ROOT / BYSTANDER_TABLE
+    if not path.exists():
+        return [f"{BYSTANDER_TABLE}: needed for derived statistics but missing."]
+    actual = bystander_stats(path)
+    problems = []
+    for name, (expected, tolerance) in DERIVED_STATS.items():
+        got = actual[name]
+        if abs(got - expected) > tolerance:
+            problems.append(f"{name}: expected {expected}, computed {got:.4f}.")
     return problems
 
 
